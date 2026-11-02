@@ -108,7 +108,7 @@ const IO = (() => {
   function djiFlyIssues(cap) {
     const W = S.m.waypoints, s = S.m.settings, err = [], warn = [];
     if (W.length < 2) err.push('нужно минимум 2 точки');
-    if (W.length > 200) err.push(`DJI Fly принимает не больше 200 точек, в маршруте ${W.length}`);
+    { const nOut = poiPreDepth ? W.length : exportList().length; if (nOut > 200) err.push(`DJI Fly принимает не больше 200 точек, записывается ${nOut}`); }
     W.forEach((w, i) => {
       w.actions.forEach(a => { if (a.type === 4) err.push(`точка ${i + 1}: действие «поворот дрона» DJI Fly не поддерживает — уберите его или задайте курс точки`); });
 
@@ -121,7 +121,7 @@ const IO = (() => {
     if (s.cruise > vmax || s.cruise < vmin) err.push(`крейсерская скорость ${s.cruise} м/с вне допустимого для дрона (${vmin.toFixed(1)}…${vmax} м/с)`);
     W.forEach((w, i) => { if (w.speed && (w.speed > vmax || w.speed < vmin)) err.push(`точка ${i + 1}: скорость ${w.speed} м/с вне допустимого (${vmin.toFixed(1)}…${vmax})`); });
     const gp = cap && cap.pitch, gmin = gp ? gp.min : -90, gmax = gp ? gp.max : 35;
-    if (s.gimbalMode !== 'disabled') W.forEach((w, i) => { if (w.gkeep) return; const g = Core.effGimbal(i) ?? w.gimbal; if (g < gmin || g > gmax) err.push(`точка ${i + 1}: наклон камеры ${Math.round(g)}° вне диапазона подвеса (${gmin}…${gmax}°)`); });
+    if (s.gimbalMode !== 'disabled') W.forEach((w, i) => { if (w.gkeep && i > 0) return; const g = Core.effGimbal(i) ?? w.gimbal; if (g < gmin || g > gmax) err.push(`точка ${i + 1}: наклон камеры ${Math.round(g)}° вне диапазона подвеса (${gmin}…${gmax}°)`); });
     if (s.pathMode !== 'curved') warn.push('«Прямые с остановками» будут записаны как остановка в каждой точке (DJI Fly сам строит путь плавными кривыми)');
     if (s.finishAction !== 'rth') warn.push('DJI Fly создаёт задания с «Возврат домой» по завершении; другое действие может не отображаться в DJI Fly');
     if (s.headingMode === 'initial') warn.push('курс «как в начале» записан как постоянный курс в каждой точке');
@@ -211,7 +211,7 @@ const IO = (() => {
       const md = modeOf(w), hmode = HM[md] || 'followWayline';
       const ang = Geo.norm180(hmode === 'smoothTransition' ? (md === 'initial' ? h0 : w.hm === 'custom' ? (w.heading || 0) : (Core.effHeading(i) ?? 0)) : (Core.effHeading(i) ?? 0));
       const turn = s.pathMode === 'curved' && !edge ? 'toPointAndPassWithContinuityCurvature' : 'toPointAndStopWithContinuityCurvature';
-      let reach = (gimbalOn && i === 0 && !w.gkeep ? gimbalRotate(pitch(0)) : '') + w.actions.map(userAction).join('');
+      let reach = (gimbalOn && i === 0 ? gimbalRotate(pitch(0)) : '') + w.actions.map(userAction).join('');
       let groups = reach ? group(1, i, i, 'reachPoint', reach) : '';
       const zoomA = (f) => A('zoom', P('focalLength', 0) + P('isUseFocalFactor', 1) + P('focalFactor', num(f)) + P('payloadPositionIndex', 0));
       if (i === 0 && w.zoom) groups += group(4, 0, 0, 'reachPoint', zoomA(w.zoom));
@@ -466,8 +466,9 @@ const IO = (() => {
     return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.google-earth.kmz' });
   }
 
-  function parseWPML(xml) {
+  function parseWPML(xml, tplXml) {
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    const tdoc = tplXml ? new DOMParser().parseFromString(tplXml, 'application/xml') : null; // template.kml (mission-wide settings)
     const m = Core.newMission(); m.waypoints = [];
     const kids = (el, n) => [...el.children].filter(c => c.localName === n);
     const tag = (el, n) => { const x = el.getElementsByTagName('wpml:' + n)[0] || el.getElementsByTagNameNS('*', n)[0]; return x ? x.textContent.trim() : null; };
@@ -494,7 +495,8 @@ const IO = (() => {
       const tm = tag(pm, 'waypointTurnMode'); w._stop = !!(tm && tm.includes('Stop'));
       [...pm.getElementsByTagNameNS('*', 'actionGroup')].forEach(g => {
         const start = parseInt(tag(g, 'actionGroupStartIndex')), end = parseInt(tag(g, 'actionGroupEndIndex'));
-        [...g.getElementsByTagNameNS('*', 'action')].forEach(a => {
+        const reach = tag(g, 'actionTriggerType') === 'reachPoint';
+        [...g.getElementsByTagNameNS('*', 'action')].forEach((a, ai) => {
           const fn = tag(a, 'actionActuatorFunc');
           if (fn === 'takePhoto') w.actions.push({ type: 1, param: 0 });
           else if (fn === 'startRecord') w.actions.push({ type: 2, param: 0 });
@@ -503,14 +505,25 @@ const IO = (() => {
           else if (fn === 'rotateYaw') w.actions.push({ type: 4, param: parseFloat(tag(a, 'aircraftHeading')) });
           else if (fn === 'gimbalEvenlyRotate') { anyGimbal = true; evenly[(isNaN(end) ? i + 1 : end)] = parseFloat(tag(a, 'gimbalPitchRotateAngle')); }
           else if (fn === 'gimbalRotate') {
+            // the FIRST camera turn on arrival may be the point's own camera tilt (written first by step / POI modes and
+            // at point 1); any further ones are «Наклон камеры» actions. Decided below, when the whole file is known.
             anyGimbal = true; const g2 = parseFloat(tag(a, 'gimbalPitchRotateAngle'));
-            if (i === 0 && start === 0) w.gimbal = g2; else w.actions.push({ type: 5, param: g2 });
+            if (reach && ai === 0 && w._lead === undefined) { w._lead = g2; w._leadAt = w.actions.length; } else w.actions.push({ type: 5, param: g2 });
           }
           else if (fn === 'zoom') { const zf = parseFloat(tag(a, 'focalFactor')) || 1; if (tag(g, 'actionTriggerType') === 'betweenAdjacentPoints') zoomSeg[isNaN(end) ? i + 1 : end] = zf; else zoomAt[i] = zf; }
         });
       });
       m.waypoints.push(w);
     });
+    // «smooth» files (usePointSetting) turn the camera at point 1 only; «follow POI» files turn it first thing at every
+    // point; anything else at a point is a «Наклон камеры» action
+    const pointPitch = (tag(doc, 'gimbalPitchMode') || (tdoc && tag(tdoc, 'gimbalPitchMode'))) === 'usePointSetting' || Object.keys(evenly).length > 0;
+    // DJI Fly files (uav.com namespace) turn the camera only at point 1; a turn at any other point is an action
+    const flyFile = /uav\.com\/wpmz/.test(xml.slice(0, 600));
+    const leadAll = !flyFile && m.waypoints.length > 1 && m.waypoints.every(w => w._lead !== undefined);
+    m.waypoints.forEach((w, i) => { if (w._lead === undefined) return;
+      if (pointPitch || flyFile ? i === 0 : leadAll) w.gimbal = w._lead; else w.actions.splice(w._leadAt, 0, { type: 5, param: w._lead });
+      delete w._lead; delete w._leadAt; });
     let rot0 = false; marks.length && [...marks[0].getElementsByTagNameNS('*', 'action')].forEach(a => { if (tag(a, 'actionActuatorFunc') === 'gimbalRotate') rot0 = true; });
     m.waypoints.forEach((w, i) => {
       if (evenly[i] !== undefined) w.gimbal = evenly[i];
@@ -677,7 +690,8 @@ const IO = (() => {
       const kmlF = wpml || Object.keys(zip.files).find(k => k.toLowerCase().endsWith('.kml'));
       if (!kmlF) throw new Error('В KMZ нет KML');
       const t = await zip.file(kmlF).async('string');
-      m = wpml ? parseWPML(t) : parseKML(t, name);
+      const tplF = Object.keys(zip.files).find(k => k.endsWith('template.kml'));
+      m = wpml ? parseWPML(t, tplF && tplF !== kmlF ? await zip.file(tplF).async('string') : null) : parseKML(t, name);
     } else {
       const text = await file.text();
       if (ext === 'csv') m = parseCSV(text);
@@ -708,6 +722,13 @@ const IO = (() => {
     parts.push([start, W.length - 1]);
     return parts;
   }
+  // a battery part ends with «Return home» (the battery is changed at the take-off point); the last part keeps the
+  // mission's own finish action, except «fly back», which makes no sense for one part of the route
+  async function withPartFinish(k, N, fn) {
+    const st = S.m.settings, keep = st.finishAction;
+    st.finishAction = k < N - 1 || keep === 'reverse' ? 'rth' : keep;
+    try { return await fn(); } finally { st.finishAction = keep; }
+  }
   async function exportSplit(target) {
     const parts = splitByBattery();
     if (parts.length === 1) { toast('Маршрут помещается в одну батарею — разбивать не нужно'); return download(safeName() + '.kmz', target === 'fly' ? new Blob([await djiFlyKMZ()]) : await wpmlKMZ(target)); }
@@ -716,7 +737,7 @@ const IO = (() => {
       for (let k = 0; k < parts.length; k++) {
         const [a, b] = parts[k];
         S.m.waypoints = all.slice(a, b + 1);
-        const blob = target === 'fly' ? new Blob([await djiFlyKMZ()]) : await wpmlKMZ(target);
+        const blob = await withPartFinish(k, parts.length, async () => target === 'fly' ? new Blob([await djiFlyKMZ()]) : await wpmlKMZ(target));
         download(`${safeName()}_Part${k + 1}of${parts.length}.kmz`, blob);
         await new Promise(r => setTimeout(r, 600));
       }
@@ -793,15 +814,30 @@ const IO = (() => {
     });
     return { list: out, added: added.length };
   }
+  // «По завершении → Пролететь обратно»: DJI waylines have no such finish action, so the way back is written as
+  // points — the route in reverse order (without actions) — and the drone hovers at the first point at the end.
+  function reversePlan(W) {
+    const back = W.slice(0, -1).reverse().map(w => Object.assign(JSON.parse(JSON.stringify(w)), { id: Core.id() + Core.id(), actions: [], photoTime: 0, photoDist: 0, ws_back: true }));
+    return W.concat(back);
+  }
+  // the exact list of points written to a file / to the remote (way back + helper points for smooth turns)
+  function exportList() {
+    const s = S.m.settings, keepW = S.m.waypoints;
+    try { if (s.finishAction === 'reverse' && keepW.length > 1) S.m.waypoints = reversePlan(keepW); return s.poiPre === 'on' ? poiPrePlan().list : S.m.waypoints.slice(); }
+    finally { S.m.waypoints = keepW; }
+  }
   let poiPreDepth = 0;
   async function withPoiPre(fn) {
-    if (S.m.settings.poiPre !== 'on' || poiPreDepth) return fn();
+    if (poiPreDepth) return fn();
+    const s = S.m.settings, rev = s.finishAction === 'reverse' && S.m.waypoints.length > 1;
+    if (s.poiPre !== 'on' && !rev) return fn();
     const keep = S.m.waypoints; poiPreDepth++;
-    try { S.m.waypoints = poiPrePlan().list; return await fn(); } finally { S.m.waypoints = keep; poiPreDepth--; }
+    try { S.m.waypoints = exportList(); if (rev) s.finishAction = 'none'; return await fn(); }
+    finally { S.m.waypoints = keep; if (rev) s.finishAction = 'reverse'; poiPreDepth--; }
   }
   const _djiFlyXML = djiFlyXML, _djiFlyKMZ = djiFlyKMZ, _wpmlKMZ = wpmlKMZ;
   djiFlyXML = opt => withPoiPre(() => _djiFlyXML(opt));
   djiFlyKMZ = opt => withPoiPre(() => _djiFlyKMZ(opt));
   wpmlKMZ = target => withPoiPre(() => _wpmlKMZ(target));
-  return { poiPrePlan, safeFile, djiFlyKMZ, djiFlyXML, djiFlyIssues, validateDjiFly, FLY_NS, splitByBattery, litchiCSV, parseCSV, wpmlKMZ, parseWPML, kml, gpx, geojson, parseKML, parseGeoJSON, parseGPX, importFile, exportAs, download, simplify };
+  return { withPartFinish, poiPrePlan, exportList, safeFile, djiFlyKMZ, djiFlyXML, djiFlyIssues, validateDjiFly, FLY_NS, splitByBattery, litchiCSV, parseCSV, wpmlKMZ, parseWPML, kml, gpx, geojson, parseKML, parseGeoJSON, parseGPX, importFile, exportAs, download, simplify };
 })();

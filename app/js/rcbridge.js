@@ -28,7 +28,7 @@ const RCBridge = (() => {
     const tpl = tk ? await zip.file(tk).async('string') : '', way = wl ? await zip.file(wl).async('string') : '';
     const pick = (t, n) => { const m = t.match(new RegExp(`<wpml:${n}>([^<]*)</wpml:${n}>`)); return m ? m[1].trim() : null; };
     const ns = ((tpl || way).match(/xmlns:wpml="([^"]+)"/) || [])[1] || null;
-    const m = way ? IO.parseWPML(way) : (tpl ? IO.parseWPML(tpl) : null);
+    const m = way ? IO.parseWPML(way, tpl) : (tpl ? IO.parseWPML(tpl) : null);
     return {
       ns, droneEnum: pick(tpl, 'droneEnumValue') ?? pick(way, 'droneEnumValue'), droneSub: pick(tpl, 'droneSubEnumValue') ?? pick(way, 'droneSubEnumValue'),
       payload: /payloadInfo/.test(tpl), created: +pick(tpl, 'createTime') || null, author: pick(tpl, 'author'),
@@ -45,9 +45,9 @@ const RCBridge = (() => {
   async function buildKmz(ref, cap) {
     const bytes = await IO.djiFlyKMZ({ ns: ref.ns || IO.FLY_NS, droneEnum: ref.droneEnum ?? '68', droneSub: ref.droneSub ?? '0', cap });
     // self-check: the file must decode back to exactly our route, in the remote's own format
-    const chk = await readMission(bytes), W = S.m.settings.poiPre === 'on' && IO.poiPrePlan ? IO.poiPrePlan().list : S.m.waypoints; // the exported list (with helper points if «Доворот на POI в полёте» is on)
+    const chk = await readMission(bytes), W = IO.exportList ? IO.exportList() : S.m.waypoints; // the exported list (with helper points if «Доворот на POI в полёте» is on)
     const z = await JSZip.loadAsync(bytes), names = Object.keys(z.files);
-    const back = IO.parseWPML(await z.file('wpmz/waylines.wpml').async('string')).waypoints;
+    const back = IO.parseWPML(await z.file('wpmz/waylines.wpml').async('string'), z.file('wpmz/template.kml') ? await z.file('wpmz/template.kml').async('string') : null).waypoints;
     const problems = [];
     if (names.length !== 2 || !names.includes('wpmz/template.kml') || !names.includes('wpmz/waylines.wpml')) problems.push('состав KMZ отличается от DJI Fly');
     if (back.length !== W.length) problems.push(`в файле ${back.length} точек вместо ${W.length}`);
@@ -257,7 +257,7 @@ const RCBridge = (() => {
         const j = await api('/rc/scan');
         if (j.ok) {
           for (const m of j.missions) {
-            if (m.data) { try { m.bytes = b64ToBytes(m.data); m.hash = await sha(m.bytes); m.info = await readMission(m.bytes); const z = await JSZip.loadAsync(m.bytes); m.parsed = IO.parseWPML(await z.file(Object.keys(z.files).find(k => k.endsWith('waylines.wpml'))).async('string')); } catch (e) { m.info = null; } }
+            if (m.data) { try { m.bytes = b64ToBytes(m.data); m.hash = await sha(m.bytes); m.info = await readMission(m.bytes); const z = await JSZip.loadAsync(m.bytes); { const tk = Object.keys(z.files).find(k => k.endsWith('template.kml')); m.parsed = IO.parseWPML(await z.file(Object.keys(z.files).find(k => k.endsWith('waylines.wpml'))).async('string'), tk ? await z.file(tk).async('string') : null); } } catch (e) { m.info = null; } }
             if (m.previewData) m.previewUrl = 'data:image/jpeg;base64,' + m.previewData;
             delete m.data; delete m.previewData;
           }
@@ -344,7 +344,7 @@ const RCBridge = (() => {
           const ref = await readMission(fb);
           S.m.waypoints = all.slice(a, b + 1);
           let bytes, route;
-          try { bytes = await buildKmz(ref.ns ? ref : { ns: null, droneEnum: null, droneSub: null }, capOf(scan)); route = routeOfEditor(); } finally { S.m.waypoints = all; }
+          try { bytes = await IO.withPartFinish(k, N, () => buildKmz(ref.ns ? ref : { ns: null, droneEnum: null, droneSub: null }, capOf(scan))); route = routeOfEditor(); } finally { S.m.waypoints = all; }
           const r = await api(`/rc/replace?folder=${encodeURIComponent(mm.folder)}&name=${encodeURIComponent(f.kmz)}`, { method: 'POST', body: bytes, headers: { 'Content-Type': 'application/octet-stream' } });
           if (!r.ok) throw new Error(errText(r));
           regSet(serialOf(), mm.folder, { name: pname, hash: await sha(bytes), at: Date.now() });
@@ -450,7 +450,7 @@ const RCBridge = (() => {
       document.querySelectorAll('.arent select').forEach(c => c.onchange = () => { const e = E[+c.dataset.k]; e.target = c.value; if (c.value) e.on = true; render(); });
       document.querySelectorAll('[data-open]').forEach(b => b.onclick = async () => {
         const e = E[+b.dataset.open], z = await JSZip.loadAsync(e.kmz), wl = Object.keys(z.files).find(k => k.endsWith('waylines.wpml'));
-        const m = IO.parseWPML(await z.file(wl).async('string')); m.name = e.name || e.label; m.settings.drone = S.m.settings.drone; m.settings.target = 'fly';
+        const tk = Object.keys(z.files).find(k => k.endsWith('template.kml')); const m = IO.parseWPML(await z.file(wl).async('string'), tk ? await z.file(tk).async('string') : null); m.name = e.name || e.label; m.settings.drone = S.m.settings.drone; m.settings.target = 'fly';
         if (S.m.waypoints.length) Core.saveToLibrary(); Core.loadMission(m); $('#modal').hidden = true; toast(`Открыто из архива: «${m.name}»`, 'ok');
       });
       const ad = $('#arDiff'); if (ad) ad.onclick = () => { E.forEach(e => e.on = !!(e.ok && !e.same && e.target)); render(); };

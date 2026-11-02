@@ -187,7 +187,8 @@ const Core = (() => {
       }
     }
     if (s.gimbalMode === 'disabled') return null;
-    if (w.gkeep) { for (let k = i - 1; k >= 0; k--) { const q = S.m.waypoints[k]; if (!q.gkeep) return q.gimbal; } return null; } // camera not changed at this point
+    // («keep the tilt» means nothing at the first point)
+    if (w.gkeep && i > 0) { for (let k = i - 1; k >= 0; k--) { const q = S.m.waypoints[k]; if (!q.gkeep) return q.gimbal; } return null; } // camera not changed at this point
     return w.gimbal;
   }
 
@@ -200,7 +201,8 @@ const Core = (() => {
     const rel = W.map(wpRel);
     for (let i = 0; i < W.length; i++) {
       const w = W[i];
-      if (!curved || i === 0 || i === W.length - 1 || !(w.curve > 0)) { out.push({ lat: w.lat, lng: w.lng, alt: rel[i], i, wp: true }); continue; }
+      // a point with actions is flown with a stop (DJI Fly / Litchi stop there to run them) — a corner, not a curve
+      if (!curved || i === 0 || i === W.length - 1 || !(w.curve > 0) || (w.actions && w.actions.length)) { out.push({ lat: w.lat, lng: w.lng, alt: rel[i], i, wp: true }); continue; }
       const dPrev = Geo.dist(W[i - 1], w), dNext = Geo.dist(w, W[i + 1]);
       const c = Math.min(curveMeters(i), dPrev * 0.5, dNext * 0.5);
       if (c < 0.5) { out.push({ lat: w.lat, lng: w.lng, alt: rel[i], i, wp: true }); continue; }
@@ -217,7 +219,7 @@ const Core = (() => {
   // Curve size in metres (as in Litchi CSV), clamped to half of the shorter adjacent segment
   function curveMeters(i) {
     const W = S.m.waypoints, w = W[i];
-    if (!(w.curve > 0) || i === 0 || i === W.length - 1) return 0;
+    if (!(w.curve > 0) || i === 0 || i === W.length - 1 || (w.actions && w.actions.length)) return 0;
     return Math.min(w.curve, 0.5 * Math.min(Geo.dist(W[i - 1], w), Geo.dist(w, W[i + 1])));
   }
 
@@ -320,8 +322,13 @@ const Core = (() => {
     if (S.m.settings.poiPre === 'on' && typeof IO !== 'undefined' && IO.poiPrePlan) { const n = IO.poiPrePlan().added; if (n) add('info', `Плавные повороты в полёте: при записи на пульт и экспорте будет добавлено вспомогательных точек: ${n} (без действий), чтобы дрон поворачивал заранее, как в симуляции. На карте их нет.`); }
     if (!W.length) { add('info', 'Маршрут пуст: кликните по карте, чтобы добавить точки.'); return out; }
     if (W.length < 2) add('err', 'Нужно минимум 2 точки маршрута.');
-    const limit = s.target === 'litchi' ? 99 : 200;
+    const limit = s.target === 'litchi' ? 99 : 200, nOut = s.finishAction === 'reverse' && s.target !== 'litchi' ? 2 * W.length - 1 : W.length;
     if (W.length > limit) add('err', `Слишком много точек: ${W.length} (лимит ${limit} для ${targetName(s.target)}). Разбейте маршрут.`);
+    else if (nOut > limit) add('err', `«Пролететь обратно» записывает обратный путь точками: ${nOut} точек — больше лимита ${limit} для ${targetName(s.target)}. Выберите другое действие по завершении или сократите маршрут.`);
+    // what DJI Fly itself will refuse or change — the same checks as on export / writing to the remote
+    if (s.target === 'fly' && typeof IO !== 'undefined' && IO.djiFlyIssues && W.length >= 2) {
+      const fi = IO.djiFlyIssues(); fi.err.filter(m => !/200 точек/.test(m)).forEach(m => add('err', 'DJI Fly: ' + m)); fi.warn.forEach(m => add('info', 'DJI Fly: ' + m));
+    }
     if (!S.m.home) add('info', 'Точка взлёта не задана — считается, что взлёт в точке 1. Задайте её режимом «Взлёт» для точных расчётов.');
     if (s.target === 'litchi' && d.apps !== 'litchi') add('warn', `${d.name} не поддерживается приложением Litchi for DJI Drones — используйте экспорт в DJI Fly KMZ.`);
     if (s.target === 'fly' && d.apps === 'litchi') add('warn', `${d.name} не поддерживает путевые точки DJI Fly — экспортируйте Litchi CSV.`);
@@ -394,7 +401,8 @@ const Core = (() => {
     let r = false; return S.m.waypoints.map(w => { const inR = r; w.actions.forEach(a => { if (a.type === 2) r = true; if (a.type === 3) r = false; }); return { in: inR, out: r }; });
   }
   // one date / time format for the whole program: «21 Nov 2026», 24-hour clock «14:05»
-  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const MON_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], MON_RU = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  const MON = typeof I18N !== 'undefined' && I18N.lang === 'en' ? MON_EN : MON_RU; // month names in the interface language
   const p2 = n => String(n).padStart(2, '0');
   // user-selectable formats (Settings and the Sun card): date d = text | dmy | ymd | mdy, time t = 24 | 12
   const FMT_DEF = { d: 'text', t: '24' };

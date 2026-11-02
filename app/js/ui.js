@@ -203,6 +203,8 @@
     },
   });
   new LocCtl().addTo(map);
+  // the map «?» lives in the map's button column (a free-floating one ended up under the route layers / buttons)
+  { const H = L.Control.extend({ options: { position: 'topleft' }, onAdd() { const h = document.querySelector('.maphlp'); h.classList.add('inctl'); L.DomEvent.disableClickPropagation(h); return h; } }); new H().addTo(map); }
   let locMk = null;
   function locate() {
     if (!navigator.geolocation) return toast('Геолокация недоступна');
@@ -723,6 +725,36 @@
     const t = o.tip || o.title;
     return `<div class="f"><label>${label}${t ? ' ' + tip(t) : ''}</label>${inp}</div>`;
   }
+  // Selects never cut their value: if the chosen text does not fit beside the label (long values, English), the field
+  // puts its label on its own line and the select spans the panel. Re-checked after every render / language pass.
+  const fitCv = document.createElement('canvas').getContext('2d');
+  function selNeed(sel) {
+    const o = sel.options[sel.selectedIndex]; if (!o) return 0; const cs = getComputedStyle(sel);
+    fitCv.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    return fitCv.measureText(o.text).width + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 22;
+  }
+  function fitSelects() {
+    document.querySelectorAll('.f > select').forEach(sel => {
+      const f = sel.parentElement; if (!sel.offsetParent) return;
+      if (f.classList.contains('stk')) { f.classList.remove('stk'); }
+      if (selNeed(sel) > sel.clientWidth + 1) f.classList.add('stk');
+    });
+  }
+  let fitQ = 0; const fitSoon = () => { if (!fitQ) fitQ = requestAnimationFrame(() => { fitQ = 0; fitSelects(); }); };
+  new MutationObserver(fitSoon).observe(document.body, { childList: true, subtree: true, characterData: true });
+  ['change', 'click', 'toggle'].forEach(t => document.addEventListener(t, fitSoon, true)); addEventListener('resize', fitSoon);
+  // the top bar and the bottom bar adapt to the window: nothing is pushed out or cut
+  function fitBars() {
+    const top = document.getElementById('top'); if (top) { top.classList.remove('tight1', 'tight2');
+      if (top.scrollWidth > top.clientWidth + 1) top.classList.add('tight1');
+      if (top.scrollWidth > top.clientWidth + 1) top.classList.add('tight2'); }
+    const bot = document.getElementById('bottom'), sim = document.getElementById('sim');
+    if (bot && sim) { bot.classList.remove('narrow'); const free = bot.clientWidth - sim.scrollWidth; if (free < 420) bot.classList.add('narrow'); }
+  }
+  { let q = 0; const soon = () => { if (!q) q = requestAnimationFrame(() => { q = 0; fitBars(); }); };
+    addEventListener('resize', soon); try { new ResizeObserver(soon).observe(document.getElementById('mapWrap')); } catch (e) { /* old engine */ }
+    new MutationObserver(soon).observe(document.getElementById('top'), { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
+    setTimeout(soon, 0); }
   const readVal = el => el.type === 'checkbox' ? el.checked : el.type === 'number' ? (el.value === '' ? null : parseFloat(el.value)) : el.value;
   function syncForm(root, get) {
     $$('[data-k]', root).forEach(el => { if (el === document.activeElement) return; const v = get(el.dataset.k); if (v === undefined) return; if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; });
@@ -738,18 +770,18 @@
       <div class="card sum" id="mSum"></div>
       <h3>Дрон и приложение ${tip('Выберите свой дрон — от него зависят размер кадра, время полёта и формат файла для экспорта.')}</h3>
       ${fld('Дрон', 'drone', s.drone, { sel: droneOpts })}
-      ${fld('Выполнять в', 'target', s.target, { sel: { fly: 'DJI Fly (KMZ)', litchi: 'Litchi (CSV)', pilot: 'DJI Pilot 2 (KMZ)' }, tip: 'Приложение на пульте, в котором будет выполняться маршрут. Определяет формат экспорта.' })}
+      ${fld('Выполнять в', 'target', s.target, { sel: { fly: 'DJI Fly (KMZ)', litchi: 'Litchi (CSV)', pilot: 'DJI Pilot 2 (KMZ)' }, tip: 'Приложение на пульте, в котором полетит маршрут:\n• DJI Fly (KMZ) — дроны серий Mini, Air, Mavic с пультами RC-N1/N2, RC 2;\n• DJI Pilot 2 (KMZ) — дроны Enterprise (Matrice, Mavic 3E/3T);\n• Litchi (CSV) — приложение Litchi, загрузка через Mission Hub.\nОт выбора зависят формат экспорта и ограничения (число точек, действий, режимы курса).' })}
       <div class="note" id="droneNote"></div>
       <h3>Полёт ${tip('Общие правила полёта для всего маршрута.')}</h3>
       ${fld('Высоты считать', 'altMode', s.altMode, { sel: { takeoff: 'от точки взлёта', agl: 'над рельефом (AGL)' }, tip: '«От точки взлёта» — как в DJI Fly: 60 м = 60 м выше места взлёта.\n«Над рельефом» — 60 м над землёй под каждой точкой (удобно в горах); при экспорте пересчитывается.' })}
       ${fld('Траектория', 'pathMode', s.pathMode, { sel: { curved: 'Плавные кривые', straight: 'Прямые с остановками' }, tip: 'Плавные кривые — дрон пролетает точки по дуге без остановки (красиво для видео).\nПрямые — летит по прямой и останавливается в каждой точке.' })}
       ${fld('Крейсерская скорость', 'cruise', s.cruise, { unit: 'м/с', min: 0.5, max: 15, tip: 'Скорость на отрезках, где у точки скорость = 0. 5–8 м/с — спокойное видео.' })}
       ${fld('Макс. скорость', 'maxSpeed', s.maxSpeed, { unit: 'м/с', min: 1, max: 15, tip: 'Верхний предел скорости для всей миссии.' })}
-      ${fld('Курс дрона', 'headingMode', s.headingMode, { sel: HEADING_MODES, tip: 'Куда повёрнут нос (и камера) дрона: по направлению полёта, на точку интереса (POI) или свой курс в каждой точке.' })}
-      ${fld('Плавный доворот камеры', 'poiBlend', s.poiBlend ?? 3, { unit: 'с', min: 0, max: 15, tip: 'Камера никогда не «скачет». Если в точке меняется курс (точка со своим курсом после участка «по курсу», смена режима, переход на POI), дрон начинает плавно поворачиваться за столько секунд ДО точки и приходит в неё уже с нужным курсом. От POI он плавно отворачивается столько же секунд ПОСЛЕ точки. Поворот всегда идёт через «нос» дрона. 0 — к POI поворот прямо в точке, остальные — не быстрее чем за 1 с.' })}
-      ${fld('Плавные повороты в полёте', 'poiPre', s.poiPre || 'off', { sel: { off: 'только в симуляции', on: 'да — добавлять доп. точки' }, tip: 'DJI Fly разворачивает дрон прямо в точке. Если включить, при записи на пульт и экспорте добавляются вспомогательные точки (без действий), чтобы настоящий дрон поворачивал так же, как в симуляции: перед точкой с новым курсом (свой курс, POI) он начинает поворот заранее, а от POI плавно отворачивается после точки. Длительность — «Плавный доворот камеры». Сам маршрут на карте не меняется.' })}
-      ${fld('Камера (подвес)', 'gimbalMode', s.gimbalMode, { sel: GIMBAL_MODES, tip: 'Как меняется наклон камеры между точками: плавно, скачком в точке или всегда на POI.' })}
-      ${fld('По завершении', 'finishAction', s.finishAction, { sel: FINISH, tip: 'Что сделает дрон после последней точки.' })}
+      ${fld('Курс дрона', 'headingMode', s.headingMode, { sel: HEADING_MODES, tip: 'Куда повёрнут нос (и камера) дрона на всём маршруте:\n• По направлению полёта — смотрит вперёд по ходу;\n• Как в начале — весь полёт держит курс первой точки;\n• Задаётся в каждой точке — свой угол в каждой точке, между точками дрон плавно поворачивается;\n• На точку интереса — всё время смотрит на POI;\n• Вручную — курсом управляет пилот стиками.\nЛюбая точка может задать свой режим (справа, «Курс в этой точке»).' })}
+      ${fld('Плавный доворот камеры', 'poiBlend', s.poiBlend ?? 3, { unit: 'с', min: 0, max: 15, tip: 'Камера никогда не «скачет». Если в точке меняется курс (точка со своим углом после участка «по направлению полёта», смена режима, переход на POI), дрон начинает плавно поворачиваться за столько секунд ДО точки и приходит в неё уже с нужным курсом. От POI он плавно отворачивается столько же секунд ПОСЛЕ последней точки, смотревшей на POI: сначала через сторону, где был объект, затем через «нос», никогда через «спину». 0 — поворот к POI ровно в точке, остальные повороты — не быстрее чем за 1 с.' })}
+      ${fld('Плавные повороты в полёте', 'poiPre', s.poiPre || 'off', { sel: { off: 'только в симуляции', on: 'да — добавлять доп. точки' }, tip: 'DJI Fly поворачивает дрон ровно в точке. «Только в симуляции» — плавные повороты видны лишь здесь. «Да — добавлять доп. точки» — при записи на пульт и экспорте добавляются вспомогательные точки (без действий), чтобы настоящий дрон поворачивал так же, как в симуляции: перед точкой с новым курсом (свой угол, POI) начинал поворот заранее, а от POI плавно отворачивался после точки. Длительность — «Плавный доворот камеры». Маршрут на карте не меняется; доп. точки входят в лимит точек приложения.' })}
+      ${fld('Камера (подвес)', 'gimbalMode', s.gimbalMode, { sel: GIMBAL_MODES, tip: 'Как управляется наклон камеры на маршруте:\n• Не управлять — программа не меняет наклон, его задаёт пилот колёсиком пульта;\n• Плавно между точками — камера плавно переходит от наклона одной точки к наклону следующей;\n• Следить за POI — наклон всё время наводится на точку интереса.\nДействие «Наклон камеры» в точке работает при любом режиме.' })}
+      ${fld('По завершении', 'finishAction', s.finishAction, { sel: FINISH, tip: 'Что сделает дрон после последней точки:\n• Ничего (зависнуть) — останется в последней точке, управление у пилота;\n• Возврат домой (RTH) — вернётся к точке взлёта и сядет;\n• Посадка — сядет прямо под последней точкой;\n• Лететь к первой точке — вернётся в начало маршрута и зависнет;\n• Пролететь обратно — пройдёт маршрут в обратном порядке (без действий в точках) и зависнет в первой точке; обратный путь записывается точками.\nБезопаснее всего — «Возврат домой». При разбиении по батареям каждая часть, кроме последней, заканчивается возвратом домой.' })}
       ${fld('При потере связи', 'rcLost', s.rcLost, { sel: { rth: 'Возврат домой', continue: 'Продолжить миссию' }, tip: 'Что делать, если пропал сигнал пульта. Безопаснее — «Возврат домой».' })}
       <h3>Значения для новых точек ${tip('С такими параметрами создаётся каждая новая точка. Уже поставленные точки не меняются. «Сбросить параметры» в меню точки возвращает её к этим значениям.')}</h3>
       ${fld('Высота', 'defAlt', s.defAlt, { unit: 'м' })}
@@ -822,7 +854,7 @@
     syncForm(tabM, k => S.m.settings[k]);
     const d = Core.drone();
     const fp = Camera.footprint(d, S.m.settings.defAlt);
-    $('#droneNote').innerHTML = `Камера ${d.wPx}×${d.hPx}, обзор ${Math.round(fp.hfov)}°×${Math.round(fp.vfov)}° · полёт до ${d.flight} мин · подвес ${d.gMin}…${d.gMax}°<br>На ${S.m.settings.defAlt} м: кадр ${Math.round(fp.w)}×${Math.round(fp.h)} м, ${fp.gsd.toFixed(2)} см/пикс.`;
+    $('#droneNote').innerHTML = `Камера ${d.wPx}×${d.hPx}, обзор ${Math.round(fp.hfov)}°×${Math.round(fp.vfov)}° · полёт до ${d.flight} мин · подвес ${d.gMin}…${d.gMax}°<br>Кадр с высоты ${S.m.settings.defAlt} м: ${Math.round(fp.w)}×${Math.round(fp.h)} м, ${fp.gsd.toFixed(2)} см/пикс.`;
     if (document.activeElement !== $('#notes')) $('#notes').value = S.m.notes || '';
     $('#mSum').innerHTML = missionSummary();
   }
@@ -875,7 +907,7 @@
     let cum = 0;
     tabP.innerHTML = `<div class="row" style="position:sticky;top:0;background:var(--panel);z-index:3;padding:4px 0;margin:-4px 0 4px">
         <button class="btn sm" data-p="all">Выбрать все</button><button class="btn sm" data-p="rev">Развернуть</button>
-        <button class="btn sm" data-p="up" title="Сдвинуть выбранные выше">▲</button><button class="btn sm" data-p="down" title="Ниже">▼</button>
+        <button class="btn sm" data-p="up" title="Переместить выбранные точки раньше по порядку">▲</button><button class="btn sm" data-p="down" title="Переместить выбранные точки позже по порядку">▼</button>
         <button class="btn sm danger" data-p="del" title="Удалить выбранные">Удалить</button><button class="btn sm danger" data-p="clr">Удалить все</button>
         ${tip('Список всех точек по порядку полёта. Клик — выбрать точку, Shift+клик — диапазон, ⌘/Ctrl+клик — добавить к выбору. ▲▼ меняют порядок выбранных.')}</div>
       <table class="plist"><tr><th>#</th><th>Выс.</th><th>Скор.</th><th>Кам.</th><th>Действ.</th><th>Путь</th></tr>
@@ -909,13 +941,13 @@
   function buildTools() {
     const s = v => GP[v];
     tabT.innerHTML = `
-    <details class="card" data-tool="orbit"><summary>⟳ Орбита и спираль ${tip('Автоматически строит круг (или спираль) точек вокруг объекта. Центр — POI или клик по карте.')}</summary>
+    <details class="card" data-tool="orbit"><summary>⟳ Орбита и спираль ${tip('Автоматически строит круг или спираль точек вокруг объекта; камера всё время смотрит на центр. Центр — выбранный POI или клик по карте.\n• Радиус начала / конца — разные значения дают спираль;\n• Высота начала / конца — подъём или спуск во время облёта;\n• Точек на виток и витков — плотность и длина облёта;\n• Направление и Старт (азимут) — куда и с какой стороны начинается облёт;\n• Высота объекта — куда целится камера (например, верх здания);\n• «Создать маршрут» заменяет текущий, «Добавить к текущему» — дописывает в конец.')}</summary>
       <div class="note" id="orbCenter"></div>
-      ${fld('Радиус начала', 'r1', s('r1'), { unit: 'м' })}${fld('Радиус конца', 'r2', s('r2'), { unit: 'м', title: 'Отличается от начального → спираль' })}
+      ${fld('Радиус начала', 'r1', s('r1'), { unit: 'м' })}${fld('Радиус конца', 'r2', s('r2'), { unit: 'м', title: 'Если радиус конца отличается от начального, получится спираль' })}
       ${fld('Высота начала', 'alt1', s('alt1'), { unit: 'м' })}${fld('Высота конца', 'alt2', s('alt2'), { unit: 'м' })}
       ${fld('Точек на виток', 'n', s('n'), { min: 3, max: 36 })}${fld('Витков', 'revs', s('revs'), { min: 0.25, step: 0.25 })}
       ${fld('Направление', 'dir', s('dir'), { sel: { 1: 'По часовой', '-1': 'Против часовой' } })}${fld('Старт (азимут)', 'start', s('start'), { unit: '°' })}
-      ${fld('Высота объекта (POI)', 'poiAlt', s('poiAlt'), { unit: 'м', title: 'Куда целится камера: высота над землёй' })}
+      ${fld('Высота объекта (POI)', 'poiAlt', s('poiAlt'), { unit: 'м', title: 'Высота над землёй той части объекта, на которую наводится камера (например, крыша или верх башни)' })}
       <label class="chk"><input type="checkbox" data-k="video" ${s('video') ? 'checked' : ''}> Запись видео на всём облёте</label>
       <div class="row"><button class="btn primary sm" data-g="orbit-new">Создать маршрут</button><button class="btn sm" data-g="orbit-add">Добавить к текущему</button></div></details>
 
@@ -927,7 +959,7 @@
       <label class="chk"><input type="checkbox" data-k="cvideo" ${s('cvideo') ? 'checked' : ''}> Запись видео на всём пролёте</label>
       <div class="row"><button class="btn primary sm" data-g="cine-new">Создать маршрут</button><button class="btn sm" data-g="cine-add">Добавить к текущему</button></div></details>
 
-    <details class="card" data-tool="grid"><summary>▱ Картирование зоны (фотограмметрия) ${tip('Строит «змейку» над нарисованной зоной для съёмки карты/3D-модели с нужным перекрытием кадров.')}</summary>
+    <details class="card" data-tool="grid"><summary>▱ Картирование зоны (фотограмметрия) ${tip('Строит «змейку» над нарисованной зоной для съёмки карты или 3D-модели (фотограмметрия).\n• «Рисовать зону» — кликайте вершины контура на карте;\n• Высота съёмки — чем ниже, тем детальнее (см/пикс) и дольше полёт;\n• Продольное / поперечное перекрытие — насколько соседние кадры заходят друг на друга (обычно 70–80 % / 60–70 %);\n• Направление галсов — угол проходов (пусто — вдоль длинной стороны);\n• Запас за границей — насколько выходить за контур;\n• Наклон камеры — −90 надир для карт, −45…−60 для 3D;\n• Съёмка — фото по расстоянию, по времени или в каждой точке;\n• Двойная сетка — второй проход поперёк, для 3D-моделей.')}</summary>
       <div class="note" id="areaInfo"></div>
       <div class="row"><button class="btn sm" data-g="area-draw">Рисовать зону</button><button class="btn sm danger" data-g="area-clear">Очистить</button><button class="btn sm" data-g="area-view">Показать</button></div>
       ${fld('Высота съёмки', 'galt', s('galt'), { unit: 'м' })}${fld('Продольное перекрытие', 'front', s('front'), { unit: '%', min: 0, max: 95 })}
@@ -939,21 +971,21 @@
       <div class="card" id="gridInfo" style="display:none"></div>
       <div class="row"><button class="btn primary sm" data-g="grid">Создать маршрут</button></div></details>
 
-    <details class="card" data-tool="corridor"><summary>╱ Коридор (дорога, река, ЛЭП) ${tip('Съёмка вдоль нарисованной линии полосой заданной ширины.')}</summary>
+    <details class="card" data-tool="corridor"><summary>╱ Коридор (дорога, река, ЛЭП) ${tip('Съёмка вдоль нарисованной линии (дорога, река, ЛЭП) полосой заданной ширины: несколько параллельных проходов вдоль линии. «Рисовать линию» — кликайте точки линии на карте. Ширина коридора — полоса съёмки, Высота — высота полёта; перекрытия кадров берутся из «Картирования зоны».')}</summary>
       <div class="note" id="lineInfo"></div>
       <div class="row"><button class="btn sm" data-g="line-draw">Рисовать линию</button><button class="btn sm danger" data-g="line-clear">Очистить</button></div>
       ${fld('Ширина коридора', 'cwidth', s('cwidth'), { unit: 'м' })}${fld('Высота', 'calt', s('calt'), { unit: 'м' })}
       <div class="note">Перекрытия берутся из «Картирования зоны».</div>
       <div class="row"><button class="btn primary sm" data-g="corridor">Создать маршрут</button></div></details>
 
-    <details class="card" data-tool="facade"><summary>▤ Фасад / стена ${tip('Вертикальная «змейка» вдоль стены здания: несколько проходов на разной высоте.')}</summary>
+    <details class="card" data-tool="facade"><summary>▤ Фасад / стена ${tip('Вертикальная «змейка» вдоль стены здания: несколько горизонтальных проходов на разной высоте, камера смотрит на стену. Нарисуйте линию из 2 точек вдоль основания стены (режим «Линия»). Расстояние до стены, Высота от / до — зона съёмки; «Дрон с какой стороны» — сторона линии; перекрытия по горизонтали и вертикали задают шаг проходов и снимков.')}</summary>
       <div class="note">Нарисуйте линию из 2 точек вдоль основания стены (режим «Линия»).</div>
       ${fld('Расстояние до стены', 'fdist', s('fdist'), { unit: 'м' })}${fld('Высота от', 'fh1', s('fh1'), { unit: 'м' })}${fld('Высота до', 'fh2', s('fh2'), { unit: 'м' })}
       ${fld('Дрон с какой стороны', 'fside', s('fside'), { sel: { right: 'Справа от линии', left: 'Слева от линии' } })}
       ${fld('Перекрытие гориз.', 'fov1', s('fov1'), { unit: '%' })}${fld('Перекрытие верт.', 'fov2', s('fov2'), { unit: '%' })}
       <div class="row"><button class="btn primary sm" data-g="facade">Создать маршрут</button></div></details>
 
-    <details class="card" data-tool="transform"><summary>✥ Трансформация маршрута ${tip('Сдвинуть, повернуть, растянуть или поднять весь маршрут (или выбранные точки) целиком.')}</summary>
+    <details class="card" data-tool="transform"><summary>✥ Трансформация маршрута ${tip('Изменить весь маршрут (или только выбранные точки) целиком:\n• Сдвиг — на заданное число метров стрелками ↑↓←→;\n• Поворот — вокруг центра на заданный угол;\n• Масштаб — растянуть или сжать (100 % — без изменений);\n• Изменить высоту — поднять или опустить все точки;\n• Следовать рельефу — пересчитать высоты так, чтобы над землёй было заданное число метров;\n• Уплотнить — добавить точки на длинных отрезках для точного следования рельефу.\nВсё отменяется ⌘Z.')}</summary>
       <div class="note">Применяется к выбранным точкам, а если ничего не выбрано — ко всему маршруту.</div>
       <div class="row">Сдвиг на ${fld('', 'tstep', s('tstep'), { unit: 'м' }).replace('class="f"', 'class="f" style="display:inline-grid;grid-template-columns:0 80px;margin:0"')}
         <button class="btn sm" data-g="mv-n">↑</button><button class="btn sm" data-g="mv-s">↓</button><button class="btn sm" data-g="mv-w">←</button><button class="btn sm" data-g="mv-e">→</button></div>
@@ -1228,19 +1260,19 @@
         ${fld(s.altMode === 'agl' ? 'Высота над рельефом' : 'Высота от взлёта', 'alt', w.alt, { unit: 'м', tip: s.altMode === 'agl' ? 'Высота над землёй прямо под точкой.' : 'Высота над местом взлёта (как показывает DJI Fly).' })}
         <div class="kv" id="wInfo" style="margin:2px 0 8px"></div>
         ${fld('Наклон камеры', 'gimbal', w.gimbal, { unit: '°', min: -90, max: 60, dis: s.gimbalMode === 'poi' || w.gkeep, tip: '0° — горизонт, −90° — строго вниз. Жёлтая рамка на карте и в 3D показывает, что попадёт в кадр.' })}
-        ${fld('Точка интереса', 'poi', w.poi || '', { sel: poiOpts, tip: 'Объект, на который будет смотреть камера в этой точке.' })}
+        ${fld('Точка интереса', 'poi', w.poi || '', { sel: poiOpts, tip: 'Объект (POI), на который смотрит камера от этой точки до следующей. Выбор POI сразу ставит курс точки «на точку интереса»; наклон камеры наводится на POI, если «Камера (подвес)» = на POI. «— нет —» снимает POI, и точка снова летит с курсом миссии.' })}
         ${fld('Скорость (0 = крейсерская)', 'speed', w.speed, { unit: 'м/с', min: 0, max: 15, tip: 'Скорость на отрезке после этой точки. 0 — крейсерская из настроек миссии.' })}
         ${fld('Радиус кривой', 'curve', w.curve, { unit: 'м', min: 0, dis: s.pathMode !== 'curved', tip: 'Плавность поворота в точке. Работает в режиме «Плавные кривые».' })}
-        ${fld('Курс в этой точке', 'hm', w.hm || '', { sel: { '': 'как в миссии (' + (HEADING_MODES[s.headingMode] || '').toLowerCase() + ')', auto: 'по направлению полёта', poi: 'на точку интереса', custom: 'задать угол', manual: 'вручную (пилот)' }, tip: 'DJI Fly позволяет задать режим курса отдельно для каждой точки. «Как в миссии» — общий режим слева.' })}
+        ${fld('Курс в этой точке', 'hm', w.hm || '', { sel: { '': 'как в миссии', auto: 'по направлению полёта', poi: 'на точку интереса', custom: 'задать угол', manual: 'вручную (пилот)' }, tip: 'Режим курса только для этой точки (действует на отрезке до следующей точки):\n• как в миссии — общий режим слева («Курс дрона»);\n• по направлению полёта — нос вперёд по ходу;\n• на точку интереса — смотрит на POI из поля «Точка интереса»;\n• задать угол — свой угол (поле «Курс» и ползунок ниже);\n• вручную — курсом управляет пилот.' })}${w.hm ? '' : `<div class="note" style="margin:-2px 0 4px">В миссии: ${HEADING_MODES[s.headingMode] || ''}</div>`}
         ${fld('Курс' + ((w.hm || s.headingMode) !== 'custom' ? ' (авто)' : ''), 'heading', w.heading, { unit: '°', min: 0, max: 359, tip: 'Куда смотрит нос дрона (0° — север, 90° — восток). Стрелки — точно по 1°, ползунок ниже — быстро. Если курс в точке не «задать угол», изменение переключит эту точку на «задать угол».' })}
         <div class="hdsl"><input type="range" id="wHdR" min="0" max="359" step="1" value="${Math.round(((Core.effHeading(i) ?? w.heading) % 360 + 360) % 360)}" title="Курс: потяните для быстрой установки (Shift — шаг 15°)"><div class="hdt"><span>С 0°</span><span>В 90°</span><span>Ю 180°</span><span>З 270°</span><span>359°</span></div></div>
         <label class="chk" style="margin:4px 0"><input type="checkbox" data-k="gkeep" ${w.gkeep ? 'checked' : ''}> Не менять наклон камеры в этой точке ${tip('Как в DJI Fly: камера сохраняет наклон с предыдущей точки, плавного поворота к этой точке нет.')}</label>
         ${fld('Зум камеры', 'zoom', w.zoom ?? '', { unit: '×', min: 1, max: 4, step: 0.1, ph: 'не менять', tip: 'Цифровой зум при подлёте к точке (как в DJI Fly). Пусто — не управлять зумом.' })}
         <details class="card"><summary>Координаты</summary>${fld('Широта', 'lat', w.lat)}${fld('Долгота', 'lng', w.lng)}</details>
-        <h3>Съёмка на отрезке до след. точки ${tip('Автоматическая серия фото, пока дрон летит к следующей точке.')}</h3>
+        <h3>Съёмка на отрезке до след. точки ${tip('Автоматическая серия фото, пока дрон летит от этой точки к следующей: «Нет» — без серии; «Фото каждые N секунд» или «Фото каждые N метров» — снимок через заданное время или расстояние пути, N — в поле справа. Во время записи видео фото не делаются.')}</h3>
         <div class="row"><select data-k="photoMode" style="flex:1"><option value="none">Нет</option><option value="time">Фото каждые N секунд</option><option value="dist">Фото каждые N метров</option></select>
           <input data-k="photoVal" type="number" step="any" style="width:70px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:4px"></div>
-        <h3>Действия в точке ${tip('Что дрон делает, долетев до точки: фото, видео, пауза, поворот, наклон камеры. Выполняются по порядку. Панорама 360° — одно действие, но внутри неё много команд; DJI Fly допускает не более 15 команд в точке.')} <span style="float:right;text-transform:none">${Core.actGroups(w.actions).length} · команд ${w.actions.length}/15</span></h3>
+        <h3 style="display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px">Действия в точке ${tip('Что дрон делает, долетев до точки: фото, видео, пауза, поворот, наклон камеры. Выполняются по порядку. Панорама 360° — одно действие, но внутри неё много команд; DJI Fly допускает не более 15 команд в точке.')} <span style="margin-left:auto;text-transform:none;letter-spacing:0">${Core.actGroups(w.actions).length} · команд ${w.actions.length}/15</span></h3>
         <div id="acts">${Core.actGroups(w.actions).map(g => g.kind === 'pano'
           ? `<div class="act pano" data-a="${g.from}" data-to="${g.to}"><span class="pn">🌐 Панорама 360° <small>${g.shots} кадров · ${g.to - g.from + 1} команд</small></span><button data-adel title="Удалить панораму целиком">✕</button></div>`
           : `<div class="act" data-a="${g.from}"><select data-ak="type">${opt(actOpts, g.a.type)}</select>
@@ -1323,12 +1355,12 @@
     }
     insp.onchange = null; insp.onclick = null; insp.oninput = null;
     insp.innerHTML = `<div class="empty"><b>Параметры точки</b> ${tip('Здесь появятся параметры точки, по которой вы кликнули на карте: высота, камера, скорость, действия.')}<br><br>
-      <div class="howto"><div><b>Клик</b> по карте</div><span>новая точка маршрута</span>
-      <div><b>Клик</b> по точке</div><span>её параметры здесь</span>
-      <div><b>Тащить</b> точку</div><span>переместить</span>
+      <div class="howto"><div><b>Клик по карте</b></div><span>новая точка маршрута</span>
+      <div><b>Клик по точке</b></div><span>её параметры здесь</span>
+      <div><b>Перетащить точку</b></div><span>переместить</span>
       <div><b>Правый клик</b></div><span>меню: тип, высота, камера, удалить…</span>
       <div><b>Del</b></div><span>удалить выбранное</span>
-      <div><b>⌘Z</b></div><span>отменить</span></div><br>
+      <div><b>⌘Z</b></div><span>отменить последнее действие</span></div><br>
       <button class="btn sm" id="qOrbit">⟳ Быстрая орбита</button> <button class="btn sm" id="qArea">▱ Картирование</button><br><br>
       <span style="font-size:11px">Нажмите <kbd>?</kbd> для справки</span></div>`;
     $('#qOrbit').onclick = () => openTool('orbit'); $('#qArea').onclick = () => setMode('area');
@@ -1598,14 +1630,14 @@
       <ol class="note" style="font-size:12.5px">
         <li>Зарегистрируйтесь бесплатно на <a href="https://ion.cesium.com/signup" target="_blank" style="color:var(--acc)">ion.cesium.com</a> (вход через Google тоже подходит).</li>
         <li>Откройте <a href="https://ion.cesium.com/tokens" target="_blank" style="color:var(--acc)">Access Tokens</a> и скопируйте «Default Token» (или создайте новый).</li>
-        <li>В разделе <a href="https://ion.cesium.com/assetdepot" target="_blank" style="color:var(--acc)">Asset Depot</a> добавьте в «My Assets» ресурс <b>Google Photorealistic 3D Tiles</b>.</li>
+        <li>Добавьте ресурс <b>Google Photorealistic 3D Tiles</b> в «My Assets» (раздел <a href="https://ion.cesium.com/assetdepot" target="_blank" style="color:var(--acc)">Asset Depot</a> на сайте).</li>
         <li>Вставьте ключ сюда и откройте 3D.</li></ol>
       <h3>Спутниковые снимки Airbus / CNES и Vantor (Maxar)</h3>
       <p class="note">Свободные слои уже показывают эти снимки: «Спутник» Esri — в основном Vantor (Maxar) Vivid, Google — Airbus, CNES/Airbus и Maxar. Здесь можно подключить их напрямую по своему коммерческому ключу. CNES — это снимки спутников Pléiades и SPOT, их распространяет Airbus (OneAtlas).</p>
       <div class="f wide"><label>Ключ Airbus OneAtlas (API key) — <a href="https://account.foundation.oneatlas.airbus.com/" target="_blank" style="color:var(--acc)">получить</a></label><input id="airbusKey" type="password" value="${escH((Core.store.get('ws.img', {}) || {}).airbus || '')}" placeholder="88 символов" style="background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px"></div>
       <div class="f wide"><label>Ключ Vantor / Maxar (MGP, maxar-api-key) — <a href="https://developers.maxar.com/docs/streaming-basemap/quickstart-basemaps" target="_blank" style="color:var(--acc)">как получить</a></label><input id="maxarKey" type="password" value="${escH((Core.store.get('ws.img', {}) || {}).maxar || '')}" placeholder="ключ Maxar API" style="background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px"></div>
       <div class="row"><button class="btn primary" id="imgSave">Сохранить и проверить</button><span class="note" id="imgStatus"></span></div>
-      <h3>Язык интерфейса / Interface language</h3>
+      <h3 class="nolang">Язык интерфейса / Interface language</h3>
       <div class="row nolang" style="gap:8px"><button class="btn ${I18N.lang === 'ru' ? 'primary' : ''}" data-lang="ru">Русский</button><button class="btn ${I18N.lang === 'en' ? 'primary' : ''}" data-lang="en">English</button></div>
       <h3>Формат даты и времени</h3>
       <div class="row" style="gap:12px;flex-wrap:wrap"><label>Дата <select id="setFmtD">${FMT_D.map(([v, t]) => `<option value="${v}" ${Core.fmtCfg().d === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
@@ -1655,7 +1687,7 @@
       <h3>Litchi</h3><p class="note">Экспорт → <b>Litchi CSV</b>, затем в Litchi Mission Hub: Missions → Import. Скорость 0 = крейсерская. Курс и настройки миссии задаются в Litchi.</p>
       <h3>Google Earth</h3><p class="note">Экспорт → <b>KML</b> открывается в Google Earth Pro: 3D-траектория по абсолютным высотам и тур «▶ Виртуальный полёт» с видом из камеры.</p>
       <h3>Высоты и рельеф</h3><p class="note">Рельеф берётся из Google Elevation (если подключён ключ) или Open-Meteo (Copernicus DEM, ~90 м). Он не учитывает здания и деревья. Режим «над рельефом» пересчитывает высоты относительно точки взлёта при экспорте в DJI.</p>
-      <p class="note">⚠ Ответственность за полёт несёт пилот. Соблюдайте местные правила: в Вьетнаме полёты требуют разрешения, лимиты высоты и зоны запретов строго соблюдаются.</p>`);
+      <p class="note">⚠ Ответственность за полёт несёт пилот. Соблюдайте местные правила: во Вьетнаме полёты требуют разрешения, лимиты высоты и зоны запретов строго соблюдаются.</p>`);
   }
   function view3D() {
     if (View3D.isOpen) { View3D.close(); $('#simPlay').textContent = '▶'; $('#simSlider').value = 0; return; }
@@ -1753,13 +1785,18 @@
     renderMap(); syncMission(); renderSun(); renderPoints(); renderInspector(); renderStats(); renderCheck();
     if ($('#tab-tools').classList.contains('on')) syncTools();
     $('[data-cmd=undo]').disabled = !S.undo.length; $('[data-cmd=redo]').disabled = !S.redo.length;
-    if (fitNext) { fitNext = false; fit(); }
+    if (fitNext) { fitNext = false; requestAnimationFrame(fit); } // after the floating panels of this render are in place
     document.title = S.m.name + ' — Waypoint Studio';
     Core.emit('rendered');
   }
   function fit() {
     const pts = S.m.waypoints.concat(S.m.pois, S.m.area, S.m.home ? [S.m.home] : []);
-    if (pts.length) map.fitBounds(L.latLngBounds(pts.map(p => [p.lat, p.lng])), { padding: [50, 50], maxZoom: 18 });
+    if (!pts.length) return;
+    // keep the route clear of the panels floating over the map (quick camera panel, map buttons, mode hint)
+    const mr = $('#map').getBoundingClientRect(), q = document.getElementById('qcam');
+    let tl = [60, 60], br = [50, 50];
+    if (q && q.offsetParent && !q.hidden) { const r = q.getBoundingClientRect(); if (r.width && r.width < mr.width * 0.6) tl = [Math.round(r.right - mr.left + 20), 60]; }
+    map.fitBounds(L.latLngBounds(pts.map(p => [p.lat, p.lng])), { paddingTopLeft: tl, paddingBottomRight: br, maxZoom: 18 });
   }
   Core.on('change', o => { if (o && o.fit) { fitNext = true; inspKey = ''; buildMission(); } refresh(); });
   let eT; Core.on('elev', () => { clearTimeout(eT); eT = setTimeout(refresh, 100); });

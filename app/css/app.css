@@ -154,7 +154,7 @@ details.card[open] summary{margin-bottom:6px}
 }
 
 /* 3D route view */
-#v3d{position:absolute;inset:0;z-index:1200;background:#0b0f13}
+#v3d{position:absolute;inset:0;z-index:1200;background:#0b0f13;container-type:size}
 #v3dMap{position:absolute;inset:0}
 #v3dMap .cesium-viewer-bottom{bottom:44px}
 .v3bar{position:absolute;left:10px;right:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;z-index:5;pointer-events:none}
@@ -273,7 +273,7 @@ ol.steps{margin:6px 0 0;padding-left:18px;line-height:1.55;color:var(--mute)}ol.
 #rcBtn.rcbusy{background:#2a5d8a;border-color:#3d8bd1;color:#fff}
 #rcBtn.rcwarn{background:#7a5a1f;border-color:#c9a227;color:#fff}
 /* 3D: «Вид камеры» picture-in-picture (what the drone camera sees) */
-.v3pip{--pipAsp:1.333;position:absolute;right:12px;bottom:74px;width:min(340px,34%);z-index:6;background:#000;border:1.5px solid #4fd3ff;border-radius:10px;overflow:hidden;box-shadow:0 6px 24px #000c}
+.v3pip{--pipAsp:1.333;position:absolute;right:12px;bottom:74px;width:max(180px,min(340px,34%,calc((100cqh - 260px) * 1.33)));z-index:6;background:#000;border:1.5px solid #4fd3ff;border-radius:10px;overflow:hidden;box-shadow:0 6px 24px #000c}
 .v3pip .piphead{display:flex;align-items:center;gap:6px;padding:4px 6px 4px 9px;background:#000d;font-size:12px}
 .v3pip .piphead b{color:#ffe14d;white-space:nowrap}.v3pip .piphead span{flex:1;min-width:0;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v3pip .piphead button{background:#ffffff1a;border:0;color:#fff;border-radius:5px;padding:2px 7px;cursor:pointer;font-size:12px}.v3pip .piphead button:hover{background:#ffffff33}
@@ -290,7 +290,7 @@ ol.steps{margin:6px 0 0;padding-left:18px;line-height:1.55;color:var(--mute)}ol.
 /* 3D: flight bubble attached to the drone */
 .v3bub{position:absolute;z-index:4;transform:translate(-50%,calc(-100% - 40px));pointer-events:none;background:rgba(255,255,255,.9);color:#111;border-radius:12px;padding:7px 12px 7px;box-shadow:0 3px 14px rgba(0,0,0,.45);font:500 13px/1.25 -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;white-space:nowrap;-webkit-font-smoothing:antialiased}
 .v3bub::after{content:"";position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);border:9px solid transparent;border-bottom:0;border-top-color:rgba(255,255,255,.9)}
-.v3bub .bv{display:flex;gap:14px}
+.v3bub .bv{display:flex;gap:14px;padding-right:16px}
 .v3bub .bv span{display:flex;flex-direction:column;align-items:center;font-size:11px;color:#555;letter-spacing:.02em}
 .v3bub .bv b{font-size:15.5px;color:#000;font-weight:700;font-variant-numeric:tabular-nums;margin-top:1px}
 .v3bub .bc{display:flex;justify-content:center;gap:8px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(0,0,0,.12)}
@@ -406,7 +406,7 @@ body.simple #sim{position:relative;padding-top:14px}
 .steps button.go:disabled{background:var(--panel2);border-color:var(--line);color:var(--mute);cursor:default}
 .steps button:hover:not(:disabled){filter:brightness(1.15)}
 /* quick camera panel */
-.qcam{position:absolute;left:10px;bottom:28px;z-index:800;width:268px;flex-direction:column;gap:4px;background:#161d24f2;border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:0 6px 22px #000a;font-size:13px}
+.qcam{position:absolute;left:10px;bottom:28px;z-index:800;width:268px;flex-direction:column;gap:4px;background:#161d24;border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:0 6px 22px #000a;font-size:13px}
 .qcam.mini{width:auto;padding:4px;background:none;border:0;box-shadow:none}
 .qcam .qh{display:flex;justify-content:space-between;align-items:center}
 .qcam .qrow{display:flex;justify-content:space-between;align-items:baseline;margin-top:4px}.qcam .qrow label{color:var(--mute)}
@@ -433,7 +433,7 @@ body.simple #sim{position:relative;padding-top:14px}
 #tour .tbox div{display:flex;justify-content:flex-end;gap:8px}#tour .tbox .btn{color:#111;background:#eee;border-color:#ccc}#tour .tbox .btn.primary{background:var(--acc);border-color:var(--acc);color:#001018}
 /* light theme (simple mode; for bright sun) */
 body.light{--bg:#eef2f6;--panel:#ffffff;--panel2:#f3f6f9;--line:#cfd8e1;--text:#111a22;--mute:#5a6876}
-body.light .qcam{background:#fffffff2}
+body.light .qcam{background:#fff}
 body.light .zleg{background:#fffffff0}
 body.light .steps button.done i{color:#fff}
 @media (max-width:1400px){body.simple .steps button:not(.go) span{max-width:96px;overflow:hidden;text-overflow:ellipsis}body.simple .uiseg button{font-size:11.5px}}
@@ -553,14 +553,14 @@ body.lcol .coltab.l,body.rcol .coltab.r{color:var(--acc);border-color:var(--acc)
 body.fullview .coltab{display:none}
 @media (max-width:1000px){.coltab{display:none}body.lcol #left,body.rcol #right{display:block}}
 #sunNow{white-space:nowrap}#sunNow.on{opacity:.55}#sunNow:not(.on){border-color:var(--acc);color:var(--acc)}
-#sunCard .row{flex-wrap:nowrap}#sunCard .row input{min-width:0;flex:1 1 0}#sunCard .row input[type=date]{flex-grow:1.4}#sunNow{flex:none;padding:3px 0;width:30px;font-size:14px}#sunCard .row{gap:4px!important}
-#sunCard .sdate{position:relative;flex:1.4 1 0;min-width:0;display:flex}#sunDateBtn{flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:5px 8px;font-size:13px}
+#sunCard .row{flex-wrap:nowrap}#sunCard .row input{min-width:0;flex:1 1 0}#sunCard .row input[type=date]{flex-grow:1.4}#sunNow{flex:none;padding:3px 8px;font-size:12.5px}#sunCard .row{gap:4px!important}
+#sunCard .sdate{position:relative;flex:1.4 1 0;min-width:0;display:flex}#sunDateBtn{flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:5px 6px;font-size:12.5px}
 #sunCard #sunDate{position:absolute;left:0;bottom:0;width:100%;height:100%;opacity:0;pointer-events:none}
 #sunCard #sunTime{flex:0 0 64px;text-align:center;font-variant-numeric:tabular-nums}
 
 #sunCard .sunfmt{gap:10px;margin:6px 0 2px;font-size:11.5px;color:var(--mute);flex-wrap:wrap}
 #sunCard .sunfmt select{background:var(--bg);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:2px 4px;font-size:11.5px}
-#sunCard #sunTime{flex:0 0 84px}
+#sunCard #sunTime{flex:0 0 70px}
 #sunNow{white-space:nowrap}
 
 
@@ -579,6 +579,8 @@ body.light #imgInfo{background:#fffffff0;color:#111a22}
 /* design pass 2.9: no overlaps, wider value column, tidy marks */
 .f{grid-template-columns:minmax(0,1fr) 136px}
 .f select{text-overflow:ellipsis}
+/* a field whose value does not fit next to its label: label on its own line, the control across the whole panel */
+.f.stk{grid-template-columns:minmax(0,1fr);gap:3px}.f.stk>label{padding-top:2px}
 .qcam{left:52px}
 #imgInfo{left:auto;right:10px;bottom:26px;max-width:min(560px,calc(100% - 120px))}
 #simMarks u{bottom:auto;top:10px;height:2px;opacity:.9}
@@ -587,3 +589,17 @@ body.light #imgInfo{background:#fffffff0;color:#111a22}
 .hdsl{margin:-2px 0 8px}
 .hdsl input[type=range]{width:100%;margin:0;height:20px;accent-color:var(--acc)}
 .hdsl .hdt{display:flex;justify-content:space-between;font-size:10px;color:var(--mute);margin-top:-2px}
+
+/* a crowded top bar (narrow window, long English labels): mode buttons show only their icons (tooltips keep the names) */
+#top.tight1 .modes .ml{display:none}#top.tight1 .modes button{padding:4px 8px}
+#top.tight2 .brand span{display:none}#top.tight2 .mname{width:120px}
+/* bottom bar in a narrow map column: totals on their own line above the player instead of a tall column */
+#bottom.narrow{grid-template-columns:minmax(0,1fr);grid-template-areas:"stats" "sim" "prof"}
+body.fullview #bottom.narrow{grid-template-areas:"stats" "sim"}
+#bottom.narrow #sim{justify-content:flex-start;flex-wrap:wrap}
+/* during the simulation the flight line (OSD) takes the bottom of the map; the imagery badge steps aside */
+#osd:not([hidden]) ~ #imgInfo{display:none}
+#osd{max-width:calc(100% - 20px);white-space:normal}
+.maphlp.inctl{position:relative;left:auto;top:auto;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;margin-left:12px;border-radius:50%;font-style:normal;cursor:help}
+.v3pip{container-type:inline-size}@container (max-width:250px){.v3pip .piphead b .t{display:none}}
+.v3bub.below{transform:translate(-50%,40px)}

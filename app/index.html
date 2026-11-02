@@ -48,12 +48,12 @@
     <button class="btn icon" data-cmd="redo" title="Повторить (⇧⌘Z)">↷</button>
   </div>
   <div class="grp modes" id="modes">
-    <button data-mode="wp" title="Добавлять путевые точки (W)">✚ Точки</button>
-    <button data-mode="poi" title="Добавлять точки интереса (P)">◎ POI</button>
-    <button data-mode="home" title="Задать точку взлёта (H)">⌂ Взлёт</button>
-    <button data-mode="area" title="Рисовать зону картирования (A)">▱ Зона</button>
-    <button data-mode="line" title="Рисовать линию для коридора/фасада (L)">╱ Линия</button>
-    <button data-mode="pan" title="Просмотр: клики по карте не ставят точки">✋ Просмотр</button>
+    <button data-mode="wp" title="Добавлять путевые точки (W)">✚<span class="ml"> Точки</span></button>
+    <button data-mode="poi" title="Добавлять точки интереса (P)">◎<span class="ml"> POI</span></button>
+    <button data-mode="home" title="Задать точку взлёта (H)">⌂<span class="ml"> Взлёт</span></button>
+    <button data-mode="area" title="Рисовать зону картирования (A)">▱<span class="ml"> Зона</span></button>
+    <button data-mode="line" title="Рисовать линию для коридора/фасада (L)">╱<span class="ml"> Линия</span></button>
+    <button data-mode="pan" title="Просмотр: клики по карте не ставят точки">✋<span class="ml"> Просмотр</span></button>
   </div>
   <i class="hlp" data-tip="Что делает клик по карте:
 ✚ Точки — ставит точку маршрута (основной режим)
@@ -63,7 +63,7 @@
 ✋ Просмотр — клики ничего не ставят
 
 Правый клик по карте или точке в любом режиме открывает меню.">?</i>
-  <div class="search"><input id="search" placeholder="Поиск места или координаты…" autocomplete="off"><div id="searchRes"></div></div>
+  <div class="search"><input id="search" placeholder="🔍 Поиск" title="Поиск места (город, адрес, объект) или координаты «широта, долгота»" autocomplete="off"><div id="searchRes"></div></div>
   <div class="grp right">
     <span id="gStatus" class="gst" data-cmd="settings"></span>
     <select id="layerSel" title="Подложка карты"></select>

@@ -241,6 +241,11 @@ async function loaderTest() {
   try {
     for (const [k, fn] of Object.entries(groups)) { if (only && only !== k) continue; console.log('\n• ' + k); try { await fn(b); } catch (e) { ok(k + ': тест не завершился', false, e.message); } }
     if (!only || only === 'loader') await loaderTest();
+    if (!only || only === 'fuzz') { // random routes through simulation, check and every export / import (tests/fuzz.js)
+      console.log('\n• fuzz');
+      const r = require('child_process').spawnSync(process.execPath, [path.join(__dirname, 'fuzz.js'), '120', '1'], { encoding: 'utf8', timeout: 600000 });
+      const tail = (r.stdout || '').trim().split('\n'); ok('120 случайных маршрутов: симуляция, проверка, экспорт и обратный импорт', r.status === 0, tail.slice(-4).join(' | '));
+    }
   } finally { await b.close(); srv.close(); }
   console.log(`\nИтого: ${pass} ✓, ${fail} ✗${fail ? '\nНе прошли: ' + fails.join('; ') : ''}`);
   process.exit(fail ? 1 : 0);

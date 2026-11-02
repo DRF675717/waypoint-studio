@@ -59,7 +59,9 @@ const View3D = (() => {
 • Клик по точке — выбрать (параметры справа)
 • Правый клик — то же меню, что на карте: добавить точку/POI/взлёт, переместить, высота, камера, удалить
 • Жёлтая пирамида — кадр камеры: что попадёт в снимок с этой высоты и наклона
-• ▶ внизу — проиграть полёт; «Сзади» и «Камера дрона» — вид во время полёта">?</i><span id="v3src" class="v3src"></span>
+• ▶ внизу — проиграть полёт (с выбранной точки, если она выбрана)
+• Обзор — свободная камера; Сзади — камера за дроном смотрит туда же, куда его камера, карта разворачивается по ходу (колесо — ближе/дальше, перетаскивание — наклон и обзор, двойной клик — сброс); Камера дрона — вид из камеры
+• Кадр, Здания, Камера (окно вида камеры), Шторка — слои и окна; Весь маршрут — показать маршрут целиком; 2D — вернуться к карте">?</i><span id="v3src" class="v3src"></span>
         <div class="v3grp"><button data-m="orbit" class="on" title="Свободный обзор">Обзор</button><button data-m="chase" title="Камера за дроном смотрит туда же, куда камера дрона: кадр впереди, карта разворачивается по ходу. Колесо — ближе/дальше, перетаскивание — наклон и обзор, двойной клик — сброс">Сзади</button><button data-m="fpv" title="Вид из камеры дрона">Камера дрона</button></div>
         <button class="v3b" id="v3frame" title="Рамка кадра камеры: что попадёт в снимок — у выбранной точки, а во время полёта — у дрона">▣ Кадр</button>
         <div class="v3grp" style="margin-left:0" title="Наклон вида (также: Shift или Ctrl + перетаскивание, колёсико мыши с нажатой средней кнопкой)"><button id="v3up" style="color:#fff" title="Смотреть более сверху">▲</button><button id="v3dn" style="color:#fff" title="Смотреть более сбоку">▼</button><button id="v3top" style="color:#fff" title="Вид строго сверху">⊤</button></div>
@@ -78,7 +80,7 @@ const View3D = (() => {
       </div>
       <div id="v3hint" class="v3hint">Левая кнопка — вращать · <b>Shift + перетаскивание</b> или ▲▼ — наклон · колесо — масштаб · <b>правый клик</b> — меню (добавить / переместить / удалить точку) · клик по точке — выбрать</div>
       <div id="v3bub" class="v3bub" hidden></div>
-      <div id="v3pip" class="v3pip" hidden><div class="piphead" title="Перетащите окно за заголовок · двойной клик — вернуть на место"><b>📷 Вид камеры</b><span id="pipWhat"></span><button id="pipBig" title="Смотреть во весь экран (режим «Камера дрона»)">⤢</button><button id="pipX" title="Скрыть окно (вернуть — кнопка 📷 вверху)">✕</button></div>
+      <div id="v3pip" class="v3pip" hidden><div class="piphead" title="Перетащите окно за заголовок · двойной клик — вернуть на место"><b>📷<span class="t"> Вид камеры</span></b><span id="pipWhat"></span><button id="pipBig" title="Смотреть во весь экран (режим «Камера дрона»)">⤢</button><button id="pipX" title="Скрыть окно (вернуть — кнопка 📷 вверху)">✕</button></div>
         <div id="pipMap"></div><div class="pipgrid"></div><div class="pipcross"></div><div class="piphud" id="pipHud"></div><div class="pipwait" id="pipWait" hidden>загрузка снимков…</div></div>
       <div id="v3load" class="v3load">Загрузка 3D…</div>`;
     document.getElementById('mapWrap').appendChild(root);
@@ -605,7 +607,7 @@ const View3D = (() => {
     if (tl && (playing || t > 0)) { const c = at(t), w = W[c.wi] || {}; return { lat: c.lat, lng: c.lng, alt: c.alt, hd: c.hd, gb: c.gb, zoom: w.zoom || 1, what: `полёт · Т.${c.wi + 1}→${Math.min(W.length, c.wi + 2)}`, g: groundAtPath(c) }; }
     const sid = S.sel.size === 1 ? [...S.sel][0] : null; let i = sid ? Core.wpIndex(sid) : 0; if (!(i >= 0)) i = 0;
     const w = W[i], hd = Core.effHeading(i);
-    return { lat: w.lat, lng: w.lng, alt: Core.wpRel(w), hd: hd ?? 0, gb: Core.effGimbal(i) ?? w.gimbal ?? -30, zoom: w.zoom || 1, what: `точка ${i + 1}${sid ? '' : ' (выберите точку)'}`, g: groundRel(w) };
+    return { lat: w.lat, lng: w.lng, alt: Core.wpRel(w), hd: hd ?? 0, gb: Core.effGimbal(i) ?? w.gimbal ?? -30, zoom: w.zoom || 1, what: `точка ${i + 1}`, hint: sid ? '' : 'Показана точка 1 — выберите другую точку на карте или в списке', g: groundRel(w) };
   }
   function pipUpdate(force) {
     const box = root && root.querySelector('#v3pip'), btn = root && root.querySelector('#v3pipBtn');
@@ -624,7 +626,7 @@ const View3D = (() => {
     pipV.scene.requestRender();
     const agl = pose.alt - (pose.g || 0);
     let frTxt = ''; try { const f = Camera.frame(d, pose, agl, pose.hd, pose.gb, 1200); frTxt = `кадр ${Math.round(f.width / pose.zoom)}×${Math.round(f.depth / pose.zoom)} м`; } catch (e) { frTxt = ''; }
-    root.querySelector('#pipWhat').textContent = ' · ' + pose.what;
+    { const pw = root.querySelector('#pipWhat'); pw.textContent = ' · ' + pose.what; pw.title = I18N.tr(pose.hint || ''); }
     root.querySelector('#pipHud').innerHTML = `<span>H ${Math.round(pose.alt)} м${Math.abs(agl - pose.alt) > 1 ? ` (${Math.round(agl)} над землёй)` : ''}</span><span>курс ${Math.round(Geo.norm360(pose.hd || 0))}°</span><span>подвес ${Math.round(pose.gb)}°</span>${pose.zoom > 1 ? `<span>зум ×${pose.zoom}</span>` : ''}${frTxt ? `<span>${frTxt}</span>` : ''}`;
   }
 
@@ -714,6 +716,9 @@ const View3D = (() => {
     const q = viewer.scene.cartesianToCanvasCoordinates(bubPos);
     if (!q) { el.style.visibility = 'hidden'; return; }
     el.style.visibility = ''; el.style.left = q.x + 'px'; el.style.top = q.y + 'px';
+    // never under the toolbars: if the bubble would reach them, it is shown below the drone instead
+    { const fb = root.querySelector('#v3fit'), rr = root.getBoundingClientRect(), lim = fb ? fb.getBoundingClientRect().bottom - rr.top + 6 : 60;
+      el.classList.toggle('below', q.y - el.offsetHeight - 40 < lim); }
   }
 
   // live telemetry for the right-hand panel (throttled while flying)
