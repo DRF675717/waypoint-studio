@@ -730,7 +730,6 @@ const View3D = (() => {
   const simOnNow = () => !!tl && (playing || t > 0);
   function emitState(force) { const now = performance.now(); if (!force && playing && now - lastEmit < 100) return; lastEmit = now; Core.emit('sim3d', { t, T: tl ? tl.T : 0, playing }); }
   const TIP_SVG = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="18" height="12" viewBox="0 0 18 12"><path d="M0,0 L18,0 L9,12Z" fill="#ffffff" fill-opacity="0.86"/></svg>');
-  const DRONE_SVG = 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="-32 -32 64 64"><g stroke="#000" stroke-width="3"><line x1="-20" y1="-20" x2="20" y2="20"/><line x1="20" y1="-20" x2="-20" y2="20"/></g><g fill="#ffffffcc" stroke="#000" stroke-width="2"><circle cx="-20" cy="-20" r="8"/><circle cx="20" cy="-20" r="8"/><circle cx="-20" cy="20" r="8"/><circle cx="20" cy="20" r="8"/></g><circle r="9" fill="#ffe14d" stroke="#000" stroke-width="2.5"/><path d="M0,-30 L9,-14 L-9,-14Z" fill="#ffe14d" stroke="#000" stroke-width="2.5"/></svg>`);
   function setOSD(txt) { const o = root && root.querySelector('#v3osd'); if (o) o.textContent = txt; }
 
   function tick() {

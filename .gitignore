@@ -1,4 +1,6 @@
 app/config.js
-node_modules/
+node_modules
 *.log
 .DS_Store
+.gh_login.log
+tests/uiaudit.json

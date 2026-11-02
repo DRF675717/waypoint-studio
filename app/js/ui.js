@@ -266,10 +266,6 @@
     const geo = Core.pathGeometry();
     pathCasing = L.polyline(geo, { color: '#1a1400', weight: 3.2, opacity: .5, lineJoin: 'round', interactive: false }).addTo(G.path);
     pathLine = L.polyline(geo, { color: '#ffe100', weight: 1.8, lineJoin: 'round', interactive: false }).addTo(G.path);
-    // stretches flown while the video is recording: red dotted line along the path
-    { const rp = Core.recPlan(); let run = null; const runs = [];
-      for (let k = 1; k < geo.length; k++) { const on = rp[geo[k - 1].i] && rp[geo[k - 1].i].out; if (on) { if (!run) { run = [geo[k - 1]]; runs.push(run); } run.push(geo[k]); } else run = null; }
-      if (false) runs.forEach(r => L.polyline(r, { color: '#1b1b1b', weight: 2.6, dashArray: '0.1 7', lineCap: 'round', opacity: .9, interactive: true }).bindTooltip('Тёмные точки на линии — здесь идёт запись видео', { sticky: true }).addTo(G.path)); }
     // parts of the flight inside no-fly / restricted zones: red, with a note on the map
     // (one note for the whole route in the map corner; the stretches and the points themselves are highlighted red)
     let zk = 0;
@@ -351,7 +347,6 @@
       mk.on('click', e => L.DomEvent.stop(e));
     });
   }
-  const frLabel = fr => `<div class="frlbl">кадр ${Math.round(fr.width)}×${Math.round(fr.depth)} м${fr.clipped ? ' · до горизонта' : ''}<br>${fr.gsd.toFixed(1)} см/пикс · ${Math.round(fr.centerDist)} м</div>`;
   function drawAim(i) {
     const w = S.m.waypoints[i]; if (!w) return;
     const h = Core.effHeading(i); if (h == null) return;
@@ -1789,6 +1784,13 @@
     document.title = S.m.name + ' — Waypoint Studio';
     Core.emit('rendered');
   }
+  // the quick camera panel just appeared over the map: if any point of the route is under it, refit the route around it
+  function clearOfPanel() {
+    const q = document.getElementById('qcam'); if (!q || q.hidden || !q.offsetParent) return;
+    const r = q.getBoundingClientRect(), mr = $('#map').getBoundingClientRect();
+    const pts = S.m.waypoints.concat(S.m.pois, S.m.home ? [S.m.home] : []);
+    if (pts.some(p => { const c = map.latLngToContainerPoint([p.lat, p.lng]), x = mr.left + c.x, y = mr.top + c.y; return x > r.left - 14 && x < r.right + 14 && y > r.top - 14 && y < r.bottom + 14; })) fit();
+  }
   function fit() {
     const pts = S.m.waypoints.concat(S.m.pois, S.m.area, S.m.home ? [S.m.home] : []);
     if (!pts.length) return;
@@ -1967,7 +1969,7 @@
       if (mode === 'simple' && $('#tab-tools').classList.contains('on') && user) switchTab('mission');
       if (mode === 'simple' && user && Core.store.get('ws.prof.simple', null) === null) { $('#profile').classList.add('hide'); }
       if (mode === 'full') $$('#insp .tgal').forEach(e => e.remove());
-      qKey = ''; update(); setTimeout(() => map.invalidateSize(), 50);
+      qKey = ''; update(); setTimeout(() => { map.invalidateSize(); clearOfPanel(); }, 60);
       if (user) toast(mode === 'simple' ? 'Упрощённый вид: шаги вверху, крупные настройки камеры на карте. Все данные маршрута сохранены.' : 'Полный вид: все инструменты и форматы экспорта', 'ok', 5000);
       if (mode === 'simple' && !Core.store.get('ws.tourDone', false)) setTimeout(() => tour(0), 900);
     }

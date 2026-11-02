@@ -367,6 +367,11 @@ function userConfigPath() { return path.join(app.getPath('userData'), 'config.js
 function startServer(port) {
   return new Promise((resolve, reject) => {
     const srv = http.createServer((req, res) => {
+      // only this computer's own pages: a foreign Host (DNS rebinding) or another site loading our files is refused
+      const host = String(req.headers.host || '').replace(/:\d+$/, '');
+      if (host && host !== '127.0.0.1' && host !== 'localhost') { res.writeHead(403); return res.end(); }
+      const site = req.headers['sec-fetch-site'];
+      if (site && site !== 'same-origin' && site !== 'none') { res.writeHead(403); return res.end(); }
       if ((req.url || '').startsWith('/rc/')) return handleRC(req, res, new URL(req.url, 'http://localhost'));
       if ((req.url || '').startsWith('/cb/')) return handleCB(req, res, new URL(req.url, 'http://localhost'));
       if ((req.url || '').startsWith('/geo/')) return handleGeo(req, res, new URL(req.url, 'http://localhost'));
@@ -385,9 +390,9 @@ function startServer(port) {
         return res.end(fs.readFileSync(userConfigPath()));
       }
       let f = path.normalize(path.join(ROOT, p));
-      if (!f.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
+      if (f !== ROOT && !f.startsWith(ROOT + path.sep)) { res.writeHead(403); return res.end(); } // not «www2/…» next to www
       // a light update carries only the program; big unchanged libraries (vendor/: Cesium, Leaflet…) come from the bundle
-      if (!fs.existsSync(f) && global.WS.liveDir) { const b = path.normalize(path.join(global.WS.bundleDir, 'www', p)); if (b.startsWith(path.join(global.WS.bundleDir, 'www'))) f = b; }
+      if (!fs.existsSync(f) && global.WS.liveDir) { const b = path.normalize(path.join(global.WS.bundleDir, 'www', p)); if (b.startsWith(path.join(global.WS.bundleDir, 'www') + path.sep)) f = b; }
       fs.readFile(f, (e, d) => {
         if (e) { res.writeHead(404); return res.end('not found'); }
         res.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });

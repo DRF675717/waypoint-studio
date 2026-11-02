@@ -9,7 +9,8 @@
 // Commands (all output is one JSON object on stdout; diagnostics go to stderr):
 //   wsbridge detect
 //   wsbridge list
-//   wsbridge pull <objectId> <destFile>
+//   wsbridge scan <tmpDir>        (list + download all mission KMZ and capability/*.json in ONE session;
+//                                  MTP object ids are only valid inside the session that enumerated them)
 //   wsbridge replace <folderName> <kmzName> <localKmz> <backupDir>
 //
 // Exit code 0 = ok, 1 = error (JSON has "ok":false, "code", "error").
@@ -56,7 +57,8 @@ typedef struct { LIBMTP_mtpdevice_t *dev; LIBMTP_raw_device_t raw; } Dev;
 
 static int open_device(Dev *d, char *err, size_t errlen) {
   LIBMTP_raw_device_t *raws = NULL; int n = 0;
-  LIBMTP_error_number_t r = LIBMTP_Detect_Raw_Devices(&raws, &n);
+  LIBMTP_error_number_t r = LIBMTP_ERROR_NO_DEVICE_ATTACHED;
+  for (int t = 0; t < 4; t++) { free(raws); raws = NULL; n = 0; r = LIBMTP_Detect_Raw_Devices(&raws, &n); if (r == LIBMTP_ERROR_NONE && n > 0) break; usleep(1000000); }
   if (r == LIBMTP_ERROR_NO_DEVICE_ATTACHED || n == 0) { snprintf(err, errlen, "NO_DEVICE"); free(raws); return -1; }
   if (r != LIBMTP_ERROR_NONE) { snprintf(err, errlen, "DETECT_FAILED:%d", (int)r); free(raws); return -1; }
   // prefer a DJI device (USB vendor 0x2CA3) if several MTP devices are attached
@@ -64,6 +66,7 @@ static int open_device(Dev *d, char *err, size_t errlen) {
   for (int i = 0; i < n; i++) if (raws[i].device_entry.vendor_id == 0x2ca3) { pick = i; break; }
   d->raw = raws[pick];
   d->dev = LIBMTP_Open_Raw_Device_Uncached(&raws[pick]);
+  for (int t = 0; !d->dev && t < 3; t++) { usleep(1200000); d->dev = LIBMTP_Open_Raw_Device_Uncached(&raws[pick]); }
   free(raws);
   if (!d->dev) { snprintf(err, errlen, "OPEN_FAILED"); return -1; }
   if (LIBMTP_Get_Storage(d->dev, LIBMTP_STORAGE_SORTBY_NOTSORTED) != 0 || !d->dev->storage) { dump_mtp_errors(d->dev); snprintf(err, errlen, "NO_STORAGE"); return -1; }
@@ -98,7 +101,7 @@ static uint32_t find_child(LIBMTP_mtpdevice_t *dev, uint32_t storage, uint32_t p
   return id;
 }
 // locate .../dji.go.v5/files/waypoint on any storage
-static int find_waypoint_dir(Dev *d, uint32_t *storage, uint32_t *folder, int *depthReached) {
+static int find_waypoint_dir_once(Dev *d, uint32_t *storage, uint32_t *folder, int *depthReached) {
   *depthReached = 0;
   for (LIBMTP_devicestorage_t *s = d->dev->storage; s; s = s->next) {
     uint32_t parent = LIBMTP_FILES_AND_FOLDERS_ROOT; int k;
@@ -110,6 +113,11 @@ static int find_waypoint_dir(Dev *d, uint32_t *storage, uint32_t *folder, int *d
     if (k > *depthReached) *depthReached = k;
     if (k == WAYPOINT_PATH_N) { *storage = s->id; *folder = parent; return 0; }
   }
+  return -1;
+}
+// the RC 2 sometimes returns an empty listing right after a session opens — retry before giving up
+static int find_waypoint_dir(Dev *d, uint32_t *storage, uint32_t *folder, int *depthReached) {
+  for (int t = 0; t < 4; t++) { if (find_waypoint_dir_once(d, storage, folder, depthReached) == 0) return 0; usleep(900000); }
   return -1;
 }
 static int is_kmz(const char *n) { size_t l = n ? strlen(n) : 0; return l > 4 && strcasecmp(n + l - 4, ".kmz") == 0; }
@@ -223,6 +231,7 @@ static int cmd_scan(const char *dir) {
     return fail("NO_WAYPOINT_FOLDER", m);
   }
   mkdir(dir, 0755);
+  int pvF = 0; uint32_t pvDir = find_child(d.dev, storage, wdir, "map_preview", &pvF); if (!pvF) pvDir = 0;
   printf("{\"ok\":true,"); print_device(&d); printf(",\"missions\":[");
   LIBMTP_file_t *folders = LIBMTP_Get_Files_And_Folders(d.dev, storage, wdir), *f, *next; int first = 1;
   for (f = folders; f; f = next) {
@@ -246,16 +255,39 @@ static int cmd_scan(const char *dir) {
         int ok = mtp_pull(d.dev, kid, dest) == 0;
         printf(",\"kmz\":"); jstr(stdout, kname); printf(",\"id\":%u,\"size\":%llu,\"time\":%lld,\"local\":", kid, (unsigned long long)ksize, ktime);
         if (ok) jstr(stdout, dest); else printf("null");
+        // route preview picture DJI Fly shows in its mission list
+        int pf = 0; uint32_t pd = pvDir ? find_child(d.dev, storage, pvDir, f->filename, &pf) : 0; uint32_t pj = 0;
+        if (pd && pf) { char jn[600]; snprintf(jn, sizeof jn, "%s.jpg", f->filename); int jf = 0; pj = find_child(d.dev, storage, pd, jn, &jf); if (jf) pj = 0; }
+        printf(",\"preview\":");
+        if (pj) { char pdst[4096]; snprintf(pdst, sizeof pdst, "%s/prev_%u.jpg", dir, pj); if (mtp_pull(d.dev, pj, pdst) == 0) jstr(stdout, pdst); else printf("null"); } else printf("null");
       }
       printf("}"); first = 0;
     }
     LIBMTP_destroy_file_t(f);
   }
-  printf("]}\n");
+  printf("],\"capability\":{");
+  int ci; uint32_t cap = find_child(d.dev, storage, wdir, "capability", &ci); int cf = 1;
+  if (cap && ci) {
+    LIBMTP_file_t *cs = LIBMTP_Get_Files_And_Folders(d.dev, storage, cap), *c, *cn;
+    for (c = cs; c; c = cn) {
+      cn = c->next;
+      if (c->filetype != LIBMTP_FILETYPE_FOLDER && c->filesize < 65536) {
+        char dest[4096]; snprintf(dest, sizeof dest, "%s/cap_%u.json", dir, c->item_id);
+        long n = 0; unsigned char *buf = NULL;
+        if (mtp_pull(d.dev, c->item_id, dest) == 0 && (buf = readall(dest, &n))) {
+          char *z = malloc(n + 1); memcpy(z, buf, n); z[n] = 0;
+          printf("%s", cf ? "" : ","); jstr(stdout, c->filename); printf(":"); jstr(stdout, z); cf = 0;
+          free(z); free(buf);
+        }
+      }
+      LIBMTP_destroy_file_t(c);
+    }
+  }
+  printf("}}\n");
   close_device(&d); return 0;
 }
 
-static int cmd_pull(uint32_t id, const char *dest) {
+__attribute__((unused)) static int cmd_pull(uint32_t id, const char *dest) {
   Dev d = {0}; char err[64];
   if (open_device(&d, err, sizeof err)) return fail(err, "Пульт не найден или занят");
   int r = mtp_pull(d.dev, id, dest);
@@ -268,15 +300,25 @@ static int cmd_pull(uint32_t id, const char *dest) {
 // Safe overwrite of <waypoint>/<folderName>/<kmzName> with localKmz.
 static int cmd_replace(const char *folderName, const char *kmzName, const char *local, const char *backupDir) {
   char why[200];
-  if (strchr(folderName, '/') || strchr(kmzName, '/') || !is_kmz(kmzName)) return fail("BAD_ARGS", "Неверное имя папки или файла задания");
-  if (validate_kmz(local, why, sizeof why)) return fail("BAD_KMZ", why);
+  // allowed targets: <UUID>/<UUID>.kmz (mission) and map_preview/<UUID>/<UUID>.jpg (route preview shown in DJI Fly's list)
+  int isPreview = strncmp(folderName, "map_preview/", 12) == 0;
+  const char *leaf = isPreview ? folderName + 12 : folderName;
+  size_t nl = strlen(kmzName);
+  int isJpg = nl > 4 && strcasecmp(kmzName + nl - 4, ".jpg") == 0;
+  if (!*leaf || strchr(leaf, '/') || strchr(kmzName, '/') || strstr(folderName, "..") || (isPreview ? !isJpg : !is_kmz(kmzName))) return fail("BAD_ARGS", "Неверное имя папки или файла задания");
+  if (isPreview) {
+    long n = 0; unsigned char *b = readall(local, &n); int ok = b && n > 1000 && n < 8 * 1024 * 1024 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF; free(b);
+    if (!ok) return fail("BAD_JPG", "Превью должно быть JPEG до 8 МБ");
+  } else if (validate_kmz(local, why, sizeof why)) return fail("BAD_KMZ", why);
 
   Dev d = {0}; char err[64];
   if (open_device(&d, err, sizeof err)) return fail(err, "Пульт не найден или занят");
   uint32_t storage, wdir; int depth;
   if (find_waypoint_dir(&d, &storage, &wdir, &depth)) { close_device(&d); return fail("NO_WAYPOINT_FOLDER", "Папка заданий DJI Fly не найдена на пульте"); }
   int isF = 0;
-  uint32_t folder = find_child(d.dev, storage, wdir, folderName, &isF);
+  uint32_t base = wdir;
+  if (isPreview) { base = find_child(d.dev, storage, wdir, "map_preview", &isF); if (!base || !isF) { close_device(&d); return fail("NO_MISSION", "Папка превью не найдена на пульте"); } }
+  uint32_t folder = find_child(d.dev, storage, base, leaf, &isF);
   if (!folder || !isF) { close_device(&d); return fail("NO_MISSION", "Выбранное задание не найдено на пульте (обновите список)"); }
   uint32_t target = find_child(d.dev, storage, folder, kmzName, &isF);
   if (!target || isF) { close_device(&d); return fail("NO_MISSION_FILE", "Файл задания не найден в папке задания (обновите список)"); }
@@ -284,7 +326,7 @@ static int cmd_replace(const char *folderName, const char *kmzName, const char *
   // 1. backup the original
   mkdir(backupDir, 0755);
   char ts[32]; time_t now = time(NULL); strftime(ts, sizeof ts, "%Y%m%d-%H%M%S", localtime(&now));
-  char backup[4096]; snprintf(backup, sizeof backup, "%s/%s__%s", backupDir, ts, kmzName);
+  char backup[4096]; snprintf(backup, sizeof backup, "%s/%s__%s%s", backupDir, ts, isPreview ? "preview__" : "", kmzName);
   if (mtp_pull(d.dev, target, backup) || fsize(backup) <= 0) { close_device(&d); return fail("BACKUP_FAILED", "Не удалось сохранить резервную копию — пульт не изменён"); }
 
   // 2. upload the new mission under a temporary name (DJI Fly ignores non-.kmz files) and verify it
@@ -335,14 +377,75 @@ static int cmd_replace(const char *folderName, const char *kmzName, const char *
   return fail("RESTORE_FAILED", m);
 }
 
+// Exercises every write primitive used by "replace" on a scratch file in Download/ (never touches DJI data):
+// upload under temp name -> read back -> rename -> read back -> delete -> confirm gone.
+static int cmd_selftest(const char *tmpdir) {
+  Dev d = {0}; char err[64];
+  if (open_device(&d, err, sizeof err)) return fail(err, "Пульт не найден или занят");
+  mkdir(tmpdir, 0755);
+  uint32_t storage = 0, dl = 0; int isF = 0;
+  for (LIBMTP_devicestorage_t *st = d.dev->storage; st && !dl; st = st->next) { dl = find_child(d.dev, st->id, LIBMTP_FILES_AND_FOLDERS_ROOT, "Download", &isF); if (dl && isF) storage = st->id; else dl = 0; }
+  if (!dl) { close_device(&d); return fail("NO_DOWNLOAD", "Нет папки Download на пульте"); }
+  char src[4096], back[4096]; snprintf(src, sizeof src, "%s/selftest.bin", tmpdir); snprintf(back, sizeof back, "%s/selftest.back", tmpdir);
+  FILE *f = fopen(src, "wb"); if (!f) { close_device(&d); return fail("LOCAL", "tmp"); }
+  srand((unsigned)time(NULL)); for (int i = 0; i < 70000; i++) fputc(rand() & 255, f); fclose(f);
+  const char *T = "ws_selftest.kmz.wsnew", *N = "ws_selftest.kmz";
+  uint32_t o = find_child(d.dev, storage, dl, T, NULL); if (o) LIBMTP_Delete_Object(d.dev, o);
+  o = find_child(d.dev, storage, dl, N, NULL); if (o) LIBMTP_Delete_Object(d.dev, o);
+  int upload = 0, read1 = 0, rename_ = 0, read2 = 0, del = 0, gone = 0; uint32_t id = 0;
+  upload = mtp_push(d.dev, src, storage, dl, T, &id) == 0;
+  if (upload) { if (!id) id = find_child(d.dev, storage, dl, T, NULL); read1 = id && mtp_pull(d.dev, id, back) == 0 && same_file(src, back); }
+  if (read1) { LIBMTP_file_t *m = LIBMTP_Get_Filemetadata(d.dev, id); if (m) { rename_ = LIBMTP_Set_File_Name(d.dev, m, N) == 0; LIBMTP_destroy_file_t(m); } if (!rename_) dump_mtp_errors(d.dev); }
+  uint32_t nid = find_child(d.dev, storage, dl, rename_ ? N : T, NULL);
+  if (rename_) read2 = nid && mtp_pull(d.dev, nid, back) == 0 && same_file(src, back);
+  if (nid) del = LIBMTP_Delete_Object(d.dev, nid) == 0;
+  gone = !find_child(d.dev, storage, dl, N, NULL) && !find_child(d.dev, storage, dl, T, NULL);
+  unlink(src); unlink(back);
+  close_device(&d);
+  printf("{\"ok\":%s,\"upload\":%d,\"readback\":%d,\"rename\":%d,\"readbackAfterRename\":%d,\"delete\":%d,\"cleanedUp\":%d}\n", (upload && read1 && del && gone) ? "true" : "false", upload, read1, rename_, read2, del, gone);
+  return 0;
+}
+
+// read-only exploration: list a folder (path relative to storage root, "/"-separated) recursively up to depth,
+// and download every small file into <dir> (same session — MTP ids are session-scoped)
+static void tree_walk(Dev *d, uint32_t storage, uint32_t parent, const char *path, int depth, const char *dir, long maxsz, int *first) {
+  LIBMTP_file_t *fs = LIBMTP_Get_Files_And_Folders(d->dev, storage, parent), *f, *nx;
+  for (f = fs; f; f = nx) {
+    nx = f->next;
+    char p[2048]; snprintf(p, sizeof p, "%s/%s", path, f->filename ? f->filename : "?");
+    int isdir = f->filetype == LIBMTP_FILETYPE_FOLDER;
+    char local[4096] = "";
+    if (!isdir && dir && (long)f->filesize <= maxsz) { snprintf(local, sizeof local, "%s/%u_%s", dir, f->item_id, f->filename ? f->filename : "x"); if (mtp_pull(d->dev, f->item_id, local)) local[0] = 0; }
+    printf("%s{\"path\":", *first ? "" : ","); jstr(stdout, p); printf(",\"dir\":%s,\"size\":%llu,\"time\":%lld,\"local\":", isdir ? "true" : "false", (unsigned long long)f->filesize, (long long)f->modificationdate);
+    if (local[0]) jstr(stdout, local); else printf("null");
+    printf("}"); *first = 0;
+    if (isdir && depth > 0) tree_walk(d, storage, f->item_id, p, depth - 1, dir, maxsz, first);
+    LIBMTP_destroy_file_t(f);
+  }
+}
+static int cmd_tree(const char *rel, int depth, const char *dir, long maxsz) {
+  Dev d = {0}; char err[64];
+  if (open_device(&d, err, sizeof err)) return fail(err, "Пульт не найден или занят");
+  if (dir) mkdir(dir, 0755);
+  uint32_t storage = d.dev->storage->id, cur = LIBMTP_FILES_AND_FOLDERS_ROOT;
+  char buf[2048]; snprintf(buf, sizeof buf, "%s", rel);
+  for (char *tok = strtok(buf, "/"); tok; tok = strtok(NULL, "/")) { int isF = 0; uint32_t id = 0;
+    for (int t = 0; t < 3 && !id; t++) { id = find_child(d.dev, storage, cur, tok, &isF); if (!id) usleep(800000); }
+    if (!id || !isF) { close_device(&d); return fail("NO_PATH", tok); } cur = id; }
+  printf("{\"ok\":true,\"items\":["); int first = 1;
+  tree_walk(&d, storage, cur, rel, depth, dir, maxsz, &first);
+  printf("]}\n"); close_device(&d); return 0;
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) { fprintf(stderr, "usage: wsbridge detect|list|pull <id> <dest>|replace <folder> <kmzName> <local.kmz> <backupDir>\n"); return 2; }
   LIBMTP_Set_Debug(getenv("WSBRIDGE_DEBUG") ? LIBMTP_DEBUG_ALL : LIBMTP_DEBUG_NONE);
   LIBMTP_Init();
   if (!strcmp(argv[1], "detect")) return cmd_detect();
   if (!strcmp(argv[1], "list")) return cmd_list();
+  if (!strcmp(argv[1], "tree") && argc >= 4) return cmd_tree(argv[2], atoi(argv[3]), argc >= 5 ? argv[4] : NULL, argc >= 6 ? atol(argv[5]) : 262144);
+  if (!strcmp(argv[1], "selftest") && argc == 3) return cmd_selftest(argv[2]);
   if (!strcmp(argv[1], "scan") && argc == 3) return cmd_scan(argv[2]);
-  if (!strcmp(argv[1], "pull") && argc == 4) return cmd_pull((uint32_t)strtoul(argv[2], NULL, 10), argv[3]);
   if (!strcmp(argv[1], "replace") && argc == 6) return cmd_replace(argv[2], argv[3], argv[4], argv[5]);
   return fail("BAD_ARGS", "Неизвестная команда");
 }
