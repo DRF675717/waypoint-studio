@@ -49,10 +49,10 @@ const groups = {
     ok('проверка маршрута без ошибок', await p.evaluate(() => WS.Core.validate().filter(x => x.lvl === 'err').length === 0), await p.evaluate(() => WS.Core.validate()));
     await p.evaluate(() => { WS.Core.S.m.waypoints[1].alt = 900; WS.Core.changed(); });
     ok('проверка ловит слишком большую высоту', await p.evaluate(() => WS.Core.validate().some(x => x.lvl !== 'ok' && /высот/i.test(x.msg))));
-    await p.evaluate(() => { WS.Core.S.m.waypoints[1].alt = 50; WS.Core.changed(); }); await p.waitForTimeout(200);
+    await p.evaluate(() => { WS.Core.S.m.waypoints[1].alt = 50; WS.Core.changed(); WS.map.setView(WS.Core.S.m.waypoints[1], 17, { animate: false }); }); await p.waitForTimeout(700);
     const c = await p.evaluate(() => { const m = WS.map, w = WS.Core.S.m.waypoints[1], q = m.latLngToContainerPoint(w), r = m.getContainer().getBoundingClientRect(); return { x: r.left + q.x, y: r.top + q.y, id: w.id, lat: w.lat }; });
     await p.mouse.click(c.x, c.y); await p.waitForTimeout(200);
-    ok('клик по точке выбирает её', await p.evaluate(id => WS.Core.S.sel.has(id), c.id));
+    ok('клик по точке выбирает её', await p.evaluate(id => WS.Core.S.sel.has(id), c.id), await p.evaluate(c => { const e = document.elementFromPoint(c.x, c.y); return e && (e.className + ' ' + (e.parentElement && e.parentElement.className)); }, c));
     await p.mouse.move(c.x, c.y); await p.mouse.down(); await p.mouse.move(c.x + 30, c.y + 40, { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(300);
     ok('перетаскивание двигает точку', await p.evaluate(lat => Math.abs(WS.Core.S.m.waypoints[1].lat - lat) > 1e-5, c.lat));
     await p.evaluate(() => { WS.Core.undo(); }); await p.waitForTimeout(200);
