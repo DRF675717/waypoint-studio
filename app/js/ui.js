@@ -1047,7 +1047,7 @@
     const ne = v.filter(x => x.lvl === 'err').length, nw = v.filter(x => x.lvl === 'warn').length;
     const bd = $('#warnBadge'); bd.textContent = ne || nw || ''; bd.className = ne ? 'err' : nw ? 'warn' : '';
     const ic = { err: '⛔', warn: '⚠️', ok: '✅', info: 'ℹ️' };
-    tabC.innerHTML = camCard() + `<h3>Предполётная проверка ${tip('Автоматическая проверка маршрута: высоты, рельеф, батарея, лимиты приложения. Клик по замечанию — показать точку на карте.')}</h3>${v.map(x => `<div class="w ${x.lvl}" ${x.i != null ? `data-i="${x.i}"` : ''}><span>${ic[x.lvl]}</span><span>${x.msg}</span></div>`).join('')}
+    tabC.innerHTML = FlightLog.card() + camCard() + `<h3>Предполётная проверка ${tip('Автоматическая проверка маршрута: высоты, рельеф, батарея, лимиты приложения. Клик по замечанию — показать точку на карте.')}</h3>${v.map(x => `<div class="w ${x.lvl}" ${x.i != null ? `data-i="${x.i}"` : ''}><span>${ic[x.lvl]}</span><span>${x.msg}</span></div>`).join('')}
       <h3>Источник рельефа</h3><div class="note">${Core.Elev.source}. Рельеф не учитывает здания, деревья и опоры ЛЭП — оставляйте запас.</div>
       <h3>Перед вылетом</h3><div class="note">• Проверьте зоны GEO на fly-safe.dji.com<br>• Обновите прошивку и калибровку компаса<br>• Сверьте маршрут в 3D / Google Earth<br>• Держите дрон в прямой видимости</div>`;
   }
@@ -1066,6 +1066,8 @@
       <span>Действия</span><b>${acts.length ? acts.join('<br>') : 'нет'}</b>${w.photoTime || w.photoDist ? `<span>Фото по пути</span><b>${w.photoTime ? 'каждые ' + w.photoTime + ' с' : 'каждые ' + w.photoDist + ' м'}${rp.out ? ' — <span class="bad">пропустятся (запись)</span>' : ''}</b>` : ''}
       ${lost ? `<span>Внимание</span><b class="warnc">${lost} фото во время записи — камера их пропустит</b>` : ''}</div></div>`;
   }
+  tabC.addEventListener('click', e => { const g = e.target.closest('[data-lg]'); if (g) { e.preventDefault(); if (g.dataset.lg === 'close') { FlightLog.clear(); refresh(); } else { const w = S.m.waypoints[+g.dataset.i]; if (w) { selectWp(w.id); map.panTo(w); } } return; } });
+  Core.on('flightlog', () => { if ($('#tab-check') && $('#tab-check').classList.contains('on')) renderCheck && renderCheck(); drawProfile(profData); });
   tabC.addEventListener('click', e => { const b = e.target.closest('[data-cc]'); if (!b) return; const W = S.m.waypoints, i0 = S.sel.size === 1 ? Core.wpIndex([...S.sel][0]) : 0, i = Math.max(0, Math.min(W.length - 1, i0 + +b.dataset.cc)); selectWp(W[i].id); map.panTo(W[i]); });
   tabC.onclick = e => { const w = e.target.closest('[data-i]'); if (w) { const x = S.m.waypoints[+w.dataset.i]; if (x) { selectWp(x.id); map.panTo(x); } } };
 
@@ -1383,6 +1385,9 @@
       c.strokeStyle = b.clear !== undefined && b.clear < S.m.settings.minClear ? (b.clear < 3 ? '#ff5d5d' : '#ffb020') : '#00c2ff';
       c.beginPath(); c.moveTo(X(a.d), Y(gh + a.alt)); c.lineTo(X(b.d), Y(gh + b.alt)); c.stroke();
     }
+    // the real flight from a log: white line with dark edge (height above take-off)
+    { const fl = FlightLog.profileLine(pr); if (fl.length > 1) { ['#000000aa', '#ffffff'].forEach((col, k) => { c.strokeStyle = col; c.lineWidth = k ? 1.6 : 3.4; c.beginPath(); fl.forEach((q, i) => i ? c.lineTo(X(q.d), Y(gh + q.h)) : c.moveTo(X(q.d), Y(gh + q.h))); c.stroke(); });
+      c.fillStyle = '#fff'; c.font = '11px -apple-system, sans-serif'; c.fillText('━ реальный полёт (журнал)', Wd - R0 - 170, Ht - B0 - 8); } }
     // waypoints
     c.lineWidth = 1;
     sm.filter(s => s.wp != null).forEach(s => {
@@ -1633,6 +1638,7 @@
       case 'save': Core.saveToLibrary(); toast('Сохранено в библиотеку: ' + S.m.name, 'ok'); break;
       case 'saveFile': IO.exportAs('json'); break;
       case 'import': $('#fileIn').click(); break;
+      case 'flightlog': FlightLog.openDialog(); break;
       case 'undo': Core.undo(); break; case 'redo': Core.redo(); break;
       case 'shareLast': if (IO.lastSaved && window.AndroidBridge) AndroidBridge.share(IO.lastSaved.uri, IO.lastSaved.mime); else toast('Сначала экспортируйте файл'); break;
       case 'clearWp': if (S.m.waypoints.length && confirm(`Удалить все ${S.m.waypoints.length} точек маршрута?`)) clearAll('wp'); break;
@@ -1651,6 +1657,9 @@
   $('#fileIn').onchange = async e => {
     for (const f of e.target.files) {
       try {
+        // a flight log (CSV with telemetry, DJI .txt) goes to the plan-vs-flight comparison, not into the route
+        const ext = f.name.split('.').pop().toLowerCase();
+        if (ext === 'txt' || (ext === 'csv' && FlightLog.isLogCSV(await f.slice(0, 4000).text()))) { if (await FlightLog.openFile(f)) switchTab('check'); continue; }
         const m = await IO.importFile(f);
         if (S.m.waypoints.length) Core.saveToLibrary();
         Core.loadMission(m); toast(`Импортировано: ${f.name} — ${m.waypoints.length} точек`, 'ok');

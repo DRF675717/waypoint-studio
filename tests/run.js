@@ -111,7 +111,7 @@ const groups = {
     const r = await p.evaluate(() => {
       // a flown track: the plan shifted 6 m east, 3 m higher, plus a sample every second
       const G = WS.Core.pathGeometry(), pts = []; let t = 0;
-      G.forEach((g, i) => { if (i % 2) return; pts.push({ t: t += 1000, lat: g.lat, lng: g.lng + 6 / (111320 * Math.cos(g.lat * Math.PI / 180)), alt: g.alt + 3 }); });
+      for (let i = 1; i < G.length; i++) for (let f = 0; f < 1; f += 0.1) { const a = G[i - 1], b = G[i], lat = a.lat + f * (b.lat - a.lat), lng = a.lng + f * (b.lng - a.lng); pts.push({ t: t += 1000, lat: lat + 6 / 111320, lng, alt: a.alt + f * (b.alt - a.alt) + 3 }); }
       const csv = 'time(millisecond),latitude,longitude,altitude_above_seaLevel(feet),height_above_takeoff(feet),isVideo\n' + pts.map((q, i) => `${q.t},${q.lat},${q.lng},0,${(q.alt / 0.3048).toFixed(2)},${i > 2 ? 1 : 0}`).join('\n');
       const tr = FlightLog.parse(csv, 'airdata.csv'); FlightLog.show(tr); return FlightLog.compare(tr);
     });

@@ -356,6 +356,9 @@ const View3D = (() => {
     });
     if (!W.length) setOSD('Маршрут пуст: правый клик по земле → «Точка маршрута здесь»');
     const P = (lat, lng, rel) => C.Cartesian3.fromDegrees(lng, lat, H0 + rel);
+    // the real flight from a log (white line at the logged height above take-off)
+    if (typeof FlightLog !== 'undefined' && FlightLog.track && FlightLog.track.hasH) { const tp = FlightLog.track.pts.filter((q, k, a) => k % Math.max(1, Math.ceil(a.length / 3000)) === 0 && q.h != null);
+      if (tp.length > 1) add({ polyline: { positions: tp.map(q => P(q.lat, q.lng, q.h)), width: 1.5, material: C.Color.WHITE.withAlpha(0.95), depthFailMaterial: C.Color.WHITE.withAlpha(0.3), arcType: C.ArcType.NONE } }); }
     const geo = Core.pathGeometry();
     const pos = geo.map(p => P(p.lat, p.lng, p.alt));
     const groundOf = groundRel = w => { // ground height under a point relative to take-off (for stems & curtain)

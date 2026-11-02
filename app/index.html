@@ -20,6 +20,7 @@
         <button data-cmd="save">Сохранить в библиотеку <kbd>⌘S</kbd></button>
         <button data-cmd="saveFile">Сохранить в файл (.json)</button>
         <button data-cmd="import">Открыть / импорт… <kbd>⌘O</kbd></button>
+        <button data-cmd="flightlog">✈ Сравнить с журналом полёта…</button>
         <hr>
         <button data-cmd="clearWp">🧹 Удалить все точки маршрута</button>
         <button data-cmd="clearAll">🧹 Очистить всё (точки, POI, взлёт, зоны)</button>
@@ -122,7 +123,7 @@
 <div id="ctx" hidden></div>
 <div id="toast"></div>
 <div id="modal" hidden><div class="box"><button class="x" data-close>✕</button><div id="modalBody"></div></div></div>
-<input type="file" id="fileIn" hidden accept=".csv,.kml,.kmz,.wpml,.gpx,.json,.geojson">
+<input type="file" id="fileIn" hidden accept=".csv,.kml,.kmz,.wpml,.gpx,.json,.geojson,.txt">
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/Leaflet.GoogleMutant.js"></script>
@@ -136,6 +137,7 @@
 <script src="js/zones.js"></script>
 <script src="js/los.js"></script>
 <script src="js/io.js"></script>
+<script src="js/flightlog.js"></script>
 <script src="js/gen.js"></script>
 <script src="js/maps.js"></script>
 <script src="js/dronemodel.js"></script>
