@@ -10,7 +10,9 @@ DJI Pilot 2 aircraft). It works like Litchi Mission Hub, but runs locally on you
 terrain, and simulates the whole flight before you take off.
 
 [**⬇ Download for macOS (Apple Silicon)**](https://github.com/DRF675717/waypoint-studio/releases/latest) ·
-[☕ Support the project](BUYMEACOFFEE_URL) · [Русская версия ниже](#по-русски)
+[☕ Support the project on Buy Me a Coffee](https://buymeacoffee.com/6757172/e/594190) · [Русская версия ниже](#по-русски)
+
+![3D view of a route](docs/screenshot-3d.jpg)
 
 ## Features
 
@@ -31,6 +33,8 @@ terrain, and simulates the whole flight before you take off.
 * **Plan vs. real flight** — load an Airdata / FlightReader / Litchi CSV log and see where the drone deviated.
 * **English and Russian interface.** Light updates install in seconds.
 
+![Route on the satellite map with the height profile](docs/screenshot-map.jpg)
+
 ## Install
 
 1. Download `WaypointStudio-<version>-macOS-arm64.zip` from [Releases](https://github.com/DRF675717/waypoint-studio/releases/latest)
@@ -47,6 +51,10 @@ Requires macOS 12+ on Apple Silicon (M1 or newer). Free maps work without keys; 
 
 The pilot is responsible for every flight. Always check the route, local rules, no-fly zones, weather and battery before
 take-off and keep the drone in visual line of sight.
+
+## Support
+
+Waypoint Studio is free. If it saves you time on a shoot, you can [buy me a coffee](https://buymeacoffee.com/6757172/e/594190) — it keeps the updates coming.
 
 ## License
 
