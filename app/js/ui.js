@@ -1804,7 +1804,7 @@
         <div class="qrow"><label>Наклон камеры</label><output id="qGbV">${gbV != null ? gbLabel(gbV) : 'разный'}</output></div>
         <input type="range" id="qGb" min="-90" max="0" step="1" value="${gbV ?? -20}">
         <div class="qchips">${[[-90, '⬇ Вниз'], [-45, '−45°'], [-20, '−20°'], [0, 'Горизонт']].map(([v, t]) => `<button data-gb="${v}" class="${gbV === v ? 'on' : ''}">${t}</button>`).join('')}</div>
-        <div class="qrow"><label>Действия в точке${S.sel.size ? '' : 'ах'}</label></div>
+        <div class="qrow"><label>${S.sel.size ? 'Действия в точке' : 'Действия во всех точках'}</label></div>
         <div class="qchips acts">${ACTQ.map(([t, l]) => `<button data-act="${t}" class="${actOn(t) ? 'on' : ''}">${actOn(t) ? '✓ ' : ''}${l}</button>`).join('')}<button data-act="pano" class="${panoOn ? 'on' : ''}">${panoOn ? '✓ ' : ''}🌐 Панорама</button></div>
         <div class="qnote">${S.sel.size ? 'Изменения — для выбранных точек.' : 'Изменения — для всех точек. Клик по точке на карте — настроить только её.'}</div>`;
     }
@@ -1858,7 +1858,7 @@
         if (mode !== 'simple') return;
         const tl = SimCore.build(), sl = $('#simSlider'); marks.innerHTML = ''; if (!tl) return;
         const W = S.m.waypoints, r0 = sl.getBoundingClientRect(), rp = sl.parentElement.getBoundingClientRect();
-        marks.style.left = (r0.left - rp.left + 7) + 'px'; marks.style.width = (r0.width - 14) + 'px';
+        marks.style.left = (r0.left - rp.left + 7) + 'px'; marks.style.width = (r0.width - 14) + 'px'; marks.style.top = (r0.top - rp.top - 13) + 'px';
         // red bar under the slider where the video is recording
         const RP = Core.recPlan(), tOf = (i, hold) => { const q = tl.pts.filter(p => p.wp === i); return q.length ? q[hold ? q.length - 1 : 0].t : null; };
         RP.forEach((r, i) => { if (!r.out) return; const t0 = tOf(i, true), t1 = i + 1 < W.length ? tOf(i + 1, false) : tl.T; if (t0 == null || t1 == null) return; const e = document.createElement('u'); e.style.left = (t0 / tl.T * 100) + '%'; e.style.width = Math.max(0.5, (t1 - t0) / tl.T * 100) + '%'; e.title = 'Запись видео'; marks.appendChild(e); });

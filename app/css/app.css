@@ -575,3 +575,10 @@ body.light #imgInfo{background:#fffffff0;color:#111a22}
 .logcard .note{font-size:11.5px;margin-top:6px}.logcard .note a{color:var(--acc)}
 .logcard .lleg{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--mute);margin-top:6px;align-items:center}
 .logcard .lleg i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:-6px;border:1px solid #0006}
+
+/* design pass 2.9: no overlaps, wider value column, tidy marks */
+.f{grid-template-columns:minmax(0,1fr) 136px}
+.f select{text-overflow:ellipsis}
+.qcam{left:52px}
+#imgInfo{left:auto;right:10px;bottom:26px;max-width:min(560px,calc(100% - 120px))}
+#simMarks u{bottom:auto;top:10px;height:2px;opacity:.9}

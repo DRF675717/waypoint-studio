@@ -1606,5 +1606,6 @@ window.WS_EN = {
 "экспортируйте": "export",
 "это имя будет видно в списке": "this name will be visible in the list",
 "это снимки спутников": "these are images from the satellites",
-"этого задания на пульте нет — выберите, куда записать": "this mission is not on the remote — choose where to write"
+"этого задания на пульте нет — выберите, куда записать": "this mission is not on the remote — choose where to write",
+"Действия во всех точках": "Actions at all points"
 };
