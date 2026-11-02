@@ -107,7 +107,7 @@ const View3D = (() => {
     const fb = $('#v3frame'); fb.classList.toggle('on', frameMode !== 'off');
     fb.onclick = () => { frameMode = frameMode === 'off' ? 'sel' : 'off'; Core.store.set('ws.frame3dOn', frameMode !== 'off'); fb.classList.toggle('on', frameMode !== 'off'); draw(false).then(showDrone); };
     if ($('#v3ge')) $('#v3ge').onclick = async () => { try { await IO.exportAs('kml'); toast('KML сохранён. В Google Earth: «Проекты → Открыть → Импортировать KML-файл» (или откройте файл в Google Earth Pro)', 'ok', 9000); window.open('https://earth.google.com/web/', '_blank'); } catch (e) { toast(e.message, 'err'); } };
-    $('#v3play').onclick = () => playing ? pause() : play();
+    $('#v3play').onclick = () => playing ? pause() : play();  // play() itself starts from the selected point when needed
     $('#v3speed').onchange = e => { const m = document.getElementById('simSpeed'); if (m) m.value = e.target.value; };
     $('#v3slider').oninput = e => { if (!tl) return; t = tl.T * e.target.value / 1000; showDrone(); };
   }
@@ -713,10 +713,10 @@ const View3D = (() => {
     if (t >= tl.T) { t = tl.T; pause(); }
     showDrone();
   }
-  function play() { if (!tl) { tl = buildTimeline(); if (!tl) return toast('Нужно минимум 2 точки'); } if (t >= tl.T) t = 0; if (t === 0 && mode === 'orbit') fit(true); /* start: show the whole route */ playing = true; last = performance.now(); $('#v3play').textContent = '⏸'; showDrone(); emitState(true); }
+  function play() { if (!tl) { tl = buildTimeline(); if (!tl) return toast('Нужно минимум 2 точки'); } { const i = Core.playStart(t > 0 && t < tl.T); if (i != null) return playFrom(i); } Core.markPlay(); if (t >= tl.T) t = 0; if (t === 0 && mode === 'orbit') fit(true); /* start: show the whole route */ playing = true; last = performance.now(); $('#v3play').textContent = '⏸'; showDrone(); emitState(true); }
   // start the 3D flight from waypoint i (context menu «Симуляция полёта с этой точки»)
-  function playFrom(i) { tl = buildTimeline(); if (!tl) return toast('Нужно минимум 2 точки'); const p = tl.pts.find(x => x.wp === i); t = p ? p.t : 0; if (t === 0 && mode === 'orbit') fit(true); playing = true; last = performance.now(); if (root) $('#v3play').textContent = '⏸'; showDrone(); emitState(true); }
-  function pause() { playing = false; if (root) $('#v3play').textContent = '▶'; emitState(true); }
+  function playFrom(i) { tl = buildTimeline(); if (!tl) return toast('Нужно минимум 2 точки'); Core.markPlay(); const p = tl.pts.find(x => x.wp === i); t = p ? p.t : 0; if (t === 0 && mode === 'orbit') fit(true); playing = true; last = performance.now(); if (root) $('#v3play').textContent = '⏸'; showDrone(); emitState(true); }
+  function pause() { playing = false; Core.markPlay(); if (root) $('#v3play').textContent = '▶'; emitState(true); }
   function seek(f) { if (!tl) tl = buildTimeline(); if (!tl) return; t = tl.T * Math.max(0, Math.min(1, f)); showDrone(); }
   function setSpeed(v) { const sel = root && $('#v3speed'); if (!sel) return; let best = sel.options[0]; [...sel.options].forEach(o => { if (Math.abs(+o.value - v) < Math.abs(+best.value - v)) best = o; }); sel.value = best.value; }
   function stopSim() { pause(); t = 0; lookId = null; if (sight) sight.show = false; showDrone(); if (drone) { drone.show = false; droneTip.show = false; bubble(null); droneStem.show = trail.show = false; } showDynFrame(Cesium, null, false); lastSimOn = true; routeEnts.forEach(e => { if (e.wsStaticFrame) e.show = true; }); lastSimOn = false; emitState(true); Core.emit('simtel', null); }

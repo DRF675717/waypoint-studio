@@ -406,5 +406,11 @@ const Core = (() => {
     if (ap) { if (h < 1 || h > 12) return null; if (ap === 'pm' || ap === 'пп') h = h % 12 + 12; else h = h % 12; }
     return h < 24 && mi < 60 ? [h, mi] : null;
   }
-  return { newWaypointLike, fmtDate, fmtTime, hm, parseTime, fmtCfg, setFmt, recPlan, actGroups, S, id, on, emit, snap, undo, redo, changed, store, library, saveToLibrary, loadMission, newMission, newWaypoint, defaultSettings, drone, wpIndex, poiById, homePt, Elev, groundAt, wpASL, wpRel, wpAGL, poiASL, effHeading, effGimbal, pathGeometry, curveMeters, stats, profile, validate, targetName, actionTime, segTime };
+  // where ▶ starts: from the selected point (one point selected) unless the user just paused there and wants to resume.
+  // mid — the simulation is paused somewhere inside the route. Returns a waypoint index or null (= continue / from start).
+  let playMark = null;
+  const selOne = () => S.sel.size === 1 ? [...S.sel][0] : null;
+  function playStart(mid) { const id = selOne(); const i = id ? wpIndex(id) : -1; if (i < 0) return null; if (!mid || id !== playMark) return i; return null; }
+  function markPlay() { playMark = selOne(); }
+  return { playStart, markPlay, newWaypointLike, fmtDate, fmtTime, hm, parseTime, fmtCfg, setFmt, recPlan, actGroups, S, id, on, emit, snap, undo, redo, changed, store, library, saveToLibrary, loadMission, newMission, newWaypoint, defaultSettings, drone, wpIndex, poiById, homePt, Elev, groundAt, wpASL, wpRel, wpAGL, poiASL, effHeading, effGimbal, pathGeometry, curveMeters, stats, profile, validate, targetName, actionTime, segTime };
 })();

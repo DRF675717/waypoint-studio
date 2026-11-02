@@ -1484,7 +1484,9 @@
   cv.addEventListener('click', e => {
     if (!profData || !profData.X) return; const r = cv.getBoundingClientRect(), x = e.clientX - r.left;
     let best = null, bd = 1e9; profData.samples.filter(s => s.wp != null).forEach(s => { const d = Math.abs(profData.X(s.d) - x); if (d < bd) { bd = d; best = s; } });
-    if (best && bd < 25) { const w = S.m.waypoints[best.wp]; selectWp(w.id, e); }
+    if (best && bd < 25) { const w = S.m.waypoints[best.wp]; selectWp(w.id, e);
+      // a flight is running: jump to the chosen point (2D or 3D)
+      if (View3D.isOpen && View3D.playing) View3D.playFrom(best.wp); else if (Sim.playing) Sim.play(best.wp); }
   });
   $('#profToggle').onclick = () => { $('#profile').classList.toggle('hide'); Core.store.set('ws.prof', !$('#profile').classList.contains('hide')); map.invalidateSize(); renderStats(); };
   if (Core.store.get('ws.prof', innerHeight > 600) === false) $('#profile').classList.add('hide');
@@ -1522,9 +1524,9 @@
       if (fromWp != null) { const p = tl.pts.find(x => x.wp === fromWp); t = p ? p.t : 0; }
       else if (t >= tl.T) t = 0;
       if ((t === 0 || fromWp != null) && !$('#simFollow').checked) fit(); // start of the flight: the whole route on screen
-      playing = true; last = performance.now(); $('#simPlay').textContent = '⏸'; requestAnimationFrame(frame);
+      Core.markPlay(); playing = true; last = performance.now(); $('#simPlay').textContent = '⏸'; requestAnimationFrame(frame);
     }
-    function pause() { playing = false; $('#simPlay').textContent = '▶'; if (tl) show(); }
+    function pause() { playing = false; Core.markPlay(); $('#simPlay').textContent = '▶'; if (tl) show(); }
     function stop() { pause(); t = 0; tl = null; Sim.cur = null; if (mk) { G.sim.clearLayers(); mk = null; } fr = null; sight = null; markLook(null); $('#osd').hidden = true; bub.hidden = true; bubLL = null; $('#simSlider').value = 0; drawProfile(profData); Tel.show(null); if (simActive) { simActive = false; refresh(); } }
     const bub = document.createElement('div'); bub.className = 'v3bub b2d'; bub.hidden = true; map.getContainer().appendChild(bub);
     let bubLL = null;
@@ -1562,13 +1564,13 @@
       if (mk) mk.setZIndexOffset(3000);
     }
     // the bottom controls drive the 3D flight when the 3D view is open, otherwise the 2D one
-    $('#simPlay').onclick = () => { if (View3D.isOpen) return View3D.toggle(); playing ? pause() : play(S.sel.size === 1 && t === 0 ? Core.wpIndex([...S.sel][0]) : null); };
+    $('#simPlay').onclick = () => { if (View3D.isOpen) return View3D.toggle(); playing ? pause() : play(Core.playStart(!!tl && t > 0 && t < tl.T)); };
     $('#simSlider').oninput = e => { if (View3D.isOpen) return View3D.seek(e.target.value / 1000); if (!tl) tl = build(); if (!tl) return; t = tl.T * e.target.value / 1000; show(); };
     $('#simSpeed').onchange = e => View3D.setSpeed(+e.target.value);
     Core.on('sim3d', st => { if (!View3D.isOpen) return; $('#simPlay').textContent = st.playing ? '⏸' : '▶'; $('#simSlider').value = st.T ? Math.round(st.t / st.T * 1000) : 0; });
     Core.on('change', () => { if (tl) { const was = playing; tl = build(); if (!tl) stop(); else { t = Math.min(t, tl.T); if (!was) show(); } } });
     function seekT(tt) { tl = build(); if (!tl) return; t = Math.max(0, Math.min(tl.T, tt)); show(); }
-    return { play, pause, stop, seekT, toggle: () => playing ? pause() : play(), cur: null, get playing() { return playing; } };
+    return { play, pause, stop, seekT, toggle: () => playing ? pause() : play(Core.playStart(!!tl && t > 0 && t < tl.T)), cur: null, get playing() { return playing; } };
   })();
 
   // =================== DIALOGS ===================

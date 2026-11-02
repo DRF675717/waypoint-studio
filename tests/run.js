@@ -110,6 +110,26 @@ const groups = {
     for (const f of [0.6, 0.75, 0.9]) { await p.mouse.move(box[0] + box[2] * f, box[1] + box[3] / 2); await p.waitForTimeout(150); }
     const after = await p.evaluate(() => WS.Sim.cur && WS.Sim.cur.d);
     ok('курсор над графиком ведёт дрона', after > before + 50, { before, after });
+    // ▶ starts from the selected point; pause + ▶ resumes; another selected point → start from it
+    await p.evaluate(() => { WS.Sim.stop(); const W = WS.Core.S.m.waypoints; WS.Core.S.sel.clear(); WS.Core.S.sel.add(W[1].id); WS.refresh(); }); await p.waitForTimeout(200);
+    const dWp = await p.evaluate(() => { const tl = SimCore.build(); return tl.pts.find(q => q.wp === 1).d; });
+    await p.click('#simPlay'); await p.waitForTimeout(150);
+    const d1 = await p.evaluate(() => WS.Sim.cur.d);
+    ok('▶ — полёт с выбранной точки', d1 >= dWp - 1 && d1 < dWp + 150, { d1, dWp });
+    await p.waitForTimeout(500); await p.click('#simPlay'); const dp = await p.evaluate(() => WS.Sim.cur.d);
+    await p.click('#simPlay'); await p.waitForTimeout(150); const d2 = await p.evaluate(() => WS.Sim.cur.d); await p.click('#simPlay');
+    ok('пауза и ▶ — продолжение с того же места', d2 >= dp - 1, { dp, d2 });
+    await p.evaluate(() => { const W = WS.Core.S.m.waypoints; WS.Core.S.sel.clear(); WS.Core.S.sel.add(W[0].id); WS.refresh(); }); await p.waitForTimeout(150);
+    await p.click('#simPlay'); await p.waitForTimeout(120); const d3 = await p.evaluate(() => WS.Sim.cur.d); 
+    const dWp0 = await p.evaluate(() => SimCore.build().pts.find(q => q.wp === 0).d);
+    ok('выбрана другая точка — ▶ начинает с неё', Math.abs(d3 - dWp0) < 150 && d3 < dp, { d3, dWp0, dp });
+    // a click on the profile while flying jumps there
+    const pb = await p.evaluate(() => { const r = document.querySelector('#profCanvas').getBoundingClientRect(), pr = window.WS && document.querySelector('#profCanvas'); return [r.left, r.top, r.width, r.height]; });
+    await p.mouse.click(pb[0] + pb[2] - 12, pb[1] + pb[3] / 2); await p.waitForTimeout(150);
+    const d4 = await p.evaluate(() => ({ d: WS.Sim.cur.d, sel: WS.Core.wpIndex([...WS.Core.S.sel][0]), playing: WS.Sim.playing }));
+    const dWp2 = await p.evaluate(() => SimCore.build().pts.find(q => q.wp === 2).d);
+    ok('клик по графику во время полёта — переход к точке', d4.sel === 2 && d4.d >= dWp2 - 1, { ...d4, dWp2 });
+    await p.evaluate(() => WS.Sim.stop());
     ok('без ошибок в консоли', p.errs.length === 0, p.errs);
     await p.close();
   },
