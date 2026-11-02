@@ -687,7 +687,7 @@ const IO = (() => {
       else if (ext === 'json' || ext === 'geojson') m = parseGeoJSON(text, name);
       else throw new Error('Неизвестный формат: .' + ext);
     }
-    if (!m.name || m.name === 'Новый маршрут' || m.name === 'Импорт') m.name = name;
+    if (!m.name || m.name === 'Новый маршрут' || m.name === 'New route' || m.name === 'Импорт') m.name = name;
     return m;
   }
 

@@ -1694,6 +1694,8 @@
   document.addEventListener('dragover', e => e.preventDefault());
   document.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) { const dt = new DataTransfer(); [...e.dataTransfer.files].forEach(f => dt.items.add(f)); $('#fileIn').files = dt.files; $('#fileIn').onchange({ target: $('#fileIn') }); } });
 
+  // the default name follows the interface language until the user renames the route
+  if (I18N.lang === 'en' && S.m.name === 'Новый маршрут') S.m.name = 'New route'; else if (I18N.lang === 'ru' && S.m.name === 'New route') S.m.name = 'Новый маршрут';
   $('#mName').onchange = e => { S.m.name = e.target.value || 'Без названия'; Core.changed(); };
 
   // search

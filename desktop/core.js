@@ -384,8 +384,10 @@ function startServer(port) {
         res.writeHead(200, { 'Content-Type': TYPES['.js'], 'Cache-Control': 'no-store' });
         return res.end(fs.readFileSync(userConfigPath()));
       }
-      const f = path.normalize(path.join(ROOT, p));
+      let f = path.normalize(path.join(ROOT, p));
       if (!f.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
+      // a light update carries only the program; big unchanged libraries (vendor/: Cesium, Leaflet…) come from the bundle
+      if (!fs.existsSync(f) && global.WS.liveDir) { const b = path.normalize(path.join(global.WS.bundleDir, 'www', p)); if (b.startsWith(path.join(global.WS.bundleDir, 'www'))) f = b; }
       fs.readFile(f, (e, d) => {
         if (e) { res.writeHead(404); return res.end('not found'); }
         res.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
@@ -480,7 +482,7 @@ async function applyLight(m) {
   fs.rmSync(tmp, { recursive: true, force: true }); fs.mkdirSync(tmp); fs.writeFileSync(pkg, b);
   await new Promise((res, rej) => execFile('/usr/bin/tar', ['xzf', pkg, '-C', tmp], e => e ? rej(e) : res())); fs.rmSync(pkg, { force: true });
   let man = {}; try { man = JSON.parse(fs.readFileSync(path.join(tmp, 'manifest.json'), 'utf8')); } catch (e) { /* checked below */ }
-  if (man.version !== m.version || man.shell !== global.WS.shell || !fs.existsSync(path.join(tmp, 'core.js')) || !fs.existsSync(path.join(tmp, 'www', 'index.html'))) { fs.rmSync(tmp, { recursive: true, force: true }); UPD.state = 'checked'; throw new Error('Обновление неполное — программа не изменена'); }
+  if (man.version !== m.version || man.shell !== global.WS.shell || !fs.existsSync(path.join(tmp, 'core.js')) || !fs.existsSync(path.join(tmp, 'www', 'index.html')) || (man.vendor === false && !fs.existsSync(path.join(global.WS.bundleDir, 'www', 'vendor')))) { fs.rmSync(tmp, { recursive: true, force: true }); UPD.state = 'checked'; throw new Error('Обновление неполное — программа не изменена'); }
   // keep the bundled config (Google key) for the new www
   try { fs.copyFileSync(path.join(ROOT, 'config.js'), path.join(tmp, 'www', 'config.js')); } catch (e) { /* none */ }
   fs.rmSync(dst, { recursive: true, force: true }); fs.renameSync(tmp, dst);

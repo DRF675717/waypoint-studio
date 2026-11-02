@@ -26,7 +26,7 @@ const Core = (() => {
     };
   }
   function newMission(name) {
-    return { v: 1, id: id() + id(), name: name || 'Новый маршрут', created: Date.now(), updated: Date.now(), settings: defaultSettings(), home: null, waypoints: [], pois: [], area: [], line: [], notes: '' };
+    return { v: 1, id: id() + id(), name: name || (typeof I18N !== 'undefined' ? I18N.tr('Новый маршрут') : 'Новый маршрут'), created: Date.now(), updated: Date.now(), settings: defaultSettings(), home: null, waypoints: [], pois: [], area: [], line: [], notes: '' };
   }
   function newWaypoint(p, m) {
     const s = m.settings;

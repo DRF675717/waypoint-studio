@@ -4,8 +4,8 @@
 set -e; cd /home/claude/mac; V=$1; P=$2; FP=$3; N=$4; D=/mnt/user-data/outputs/upd_$P; F=/mnt/user-data/outputs/upd_$FP/latest.json
 rm -rf "$D" && mkdir -p "$D"
 SHELLV=$(grep -o "const SHELL = [0-9]*" appsrc/main.js | grep -o "[0-9]*$")
-L=/tmp/ws_light; rm -rf $L && mkdir -p $L && cp appsrc/core.js $L/ && cp -r /home/claude/ws/app $L/www && rm -f $L/www/config.js $L/www/server.js
-python3 -c "import json;json.dump({'version':'$V','shell':$SHELLV},open('$L/manifest.json','w'))"
+L=/tmp/ws_light; rm -rf $L && mkdir -p $L && cp appsrc/core.js $L/ && cp -r /home/claude/ws/app $L/www && rm -rf $L/www/config.js $L/www/server.js $L/www/vendor
+python3 -c "import json;json.dump({'version':'$V','shell':$SHELLV,'vendor':False},open('$L/manifest.json','w'))"
 tar czf "$D/${P}.light.tgz" -C $L . && LSHA=$(sha256sum "$D/${P}.light.tgz" | cut -d' ' -f1)
 python3 - "$F" "$D/latest.json" "$V" "$SHELLV" "${P}.light.tgz" "$LSHA" "$N" <<'P'
 import json,sys
