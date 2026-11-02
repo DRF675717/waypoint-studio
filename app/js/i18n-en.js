@@ -1607,5 +1607,8 @@ window.WS_EN = {
 "это имя будет видно в списке": "this name will be visible in the list",
 "это снимки спутников": "these are images from the satellites",
 "этого задания на пульте нет — выберите, куда записать": "this mission is not on the remote — choose where to write",
-"Действия во всех точках": "Actions at all points"
+"Действия во всех точках": "Actions at all points",
+"Курс этой точки теперь «задать угол»": "This point now has «set angle» heading",
+"Куда смотрит нос дрона (0° — север, 90° — восток). Стрелки — точно по 1°, ползунок ниже — быстро. Если курс в точке не «задать угол», изменение переключит эту точку на «задать угол».": "Where the drone's nose points (0° — north, 90° — east). Arrows — exactly by 1°, the slider below — quickly. If the point heading is not «set angle», a change switches this point to «set angle».",
+"Курс: потяните для быстрой установки (Shift — шаг 15°)": "Heading: drag to set quickly (Shift — 15° steps)"
 };

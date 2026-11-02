@@ -388,8 +388,7 @@
     if (W.length && Geo.dist(W[W.length - 1], p) > 8000 && !confirm('Новая точка дальше 8 км от предыдущей. Добавить?')) return;
     Core.snap();
     const prev = W[W.length - 1];
-    const w = Core.newWaypoint({ lat: p.lat, lng: p.lng, alt: prev ? prev.alt : undefined, gimbal: prev ? prev.gimbal : undefined }, S.m);
-    if (prev) { w.speed = prev.speed; w.poi = prev.poi; }
+    const w = Core.newWaypointLike({ lat: p.lat, lng: p.lng }, prev, S.m); // same parameters as the previous point
     W.push(w);
     if (!S.m.home && W.length === 1) S.m.home = null;
     S.sel.clear(); S.sel.add(w.id); S.selPoi = null; S.selHome = false;
@@ -398,8 +397,8 @@
   function insertAt(idx, p) {
     const W = S.m.waypoints; Core.snap();
     const a = W[idx - 1], b = W[idx];
-    const w = Core.newWaypoint({ lat: p.lat, lng: p.lng, alt: a && b ? r1((a.alt + b.alt) / 2) : (a || b || {}).alt, gimbal: a ? a.gimbal : undefined }, S.m);
-    if (a) { w.speed = a.speed; w.poi = a.poi; }
+    // parameters of the previous point; the height between the two neighbours (no step in the profile)
+    const w = Core.newWaypointLike({ lat: p.lat, lng: p.lng, alt: a && b ? r1((a.alt + b.alt) / 2) : undefined }, a || b, S.m);
     W.splice(idx, 0, w); S.sel.clear(); S.sel.add(w.id); Core.changed();
   }
   function addPoi(p) {
@@ -607,7 +606,7 @@
     if (kind === 'wp') { const w = S.m.waypoints.find(x => x.id === idv); pos = { lat: w.lat, lng: w.lng }; S.m.waypoints = S.m.waypoints.filter(x => x.id !== idv); S.sel.delete(idv); }
     if (kind === 'poi') { const p = Core.poiById(idv); pos = { lat: p.lat, lng: p.lng }; S.m.pois = S.m.pois.filter(x => x.id !== idv); S.m.waypoints.forEach(w => { if (w.poi === idv) w.poi = null; }); S.selPoi = null; }
     if (kind === 'home') { pos = { ...S.m.home }; S.m.home = null; S.selHome = false; }
-    if (to === 'wp') { const w = Core.newWaypoint(pos, S.m); kind === 'home' ? S.m.waypoints.unshift(w) : S.m.waypoints.push(w); S.sel.clear(); S.sel.add(w.id); }
+    if (to === 'wp') { const w = Core.newWaypointLike(pos, kind === 'home' ? S.m.waypoints[0] : S.m.waypoints[S.m.waypoints.length - 1], S.m); kind === 'home' ? S.m.waypoints.unshift(w) : S.m.waypoints.push(w); S.sel.clear(); S.sel.add(w.id); }
     if (to === 'poi') { const p = { id: Core.id(), lat: pos.lat, lng: pos.lng, alt: 0, name: 'POI ' + (S.m.pois.length + 1) }; S.m.pois.push(p); S.sel.clear(); S.selPoi = p.id; }
     if (to === 'home') { S.m.home = pos; S.sel.clear(); S.selHome = true; }
     Core.changed();
@@ -1233,7 +1232,8 @@
         ${fld('Скорость (0 = крейсерская)', 'speed', w.speed, { unit: 'м/с', min: 0, max: 15, tip: 'Скорость на отрезке после этой точки. 0 — крейсерская из настроек миссии.' })}
         ${fld('Радиус кривой', 'curve', w.curve, { unit: 'м', min: 0, dis: s.pathMode !== 'curved', tip: 'Плавность поворота в точке. Работает в режиме «Плавные кривые».' })}
         ${fld('Курс в этой точке', 'hm', w.hm || '', { sel: { '': 'как в миссии (' + (HEADING_MODES[s.headingMode] || '').toLowerCase() + ')', auto: 'по направлению полёта', poi: 'на точку интереса', custom: 'задать угол', manual: 'вручную (пилот)' }, tip: 'DJI Fly позволяет задать режим курса отдельно для каждой точки. «Как в миссии» — общий режим слева.' })}
-        ${fld('Курс' + ((w.hm || s.headingMode) !== 'custom' ? ' (авто)' : ''), 'heading', w.heading, { unit: '°', dis: (w.hm || s.headingMode) !== 'custom', tip: 'Куда смотрит нос дрона (0° — север, 90° — восток). Доступно, если курс в точке — «задать угол».' })}
+        ${fld('Курс' + ((w.hm || s.headingMode) !== 'custom' ? ' (авто)' : ''), 'heading', w.heading, { unit: '°', min: 0, max: 359, tip: 'Куда смотрит нос дрона (0° — север, 90° — восток). Стрелки — точно по 1°, ползунок ниже — быстро. Если курс в точке не «задать угол», изменение переключит эту точку на «задать угол».' })}
+        <div class="hdsl"><input type="range" id="wHdR" min="0" max="359" step="1" value="${Math.round(((Core.effHeading(i) ?? w.heading) % 360 + 360) % 360)}" title="Курс: потяните для быстрой установки (Shift — шаг 15°)"><div class="hdt"><span>С 0°</span><span>В 90°</span><span>Ю 180°</span><span>З 270°</span><span>359°</span></div></div>
         <label class="chk" style="margin:4px 0"><input type="checkbox" data-k="gkeep" ${w.gkeep ? 'checked' : ''}> Не менять наклон камеры в этой точке ${tip('Как в DJI Fly: камера сохраняет наклон с предыдущей точки, плавного поворота к этой точке нет.')}</label>
         ${fld('Зум камеры', 'zoom', w.zoom ?? '', { unit: '×', min: 1, max: 4, step: 0.1, ph: 'не менять', tip: 'Цифровой зум при подлёте к точке (как в DJI Fly). Пусто — не управлять зумом.' })}
         <details class="card"><summary>Координаты</summary>${fld('Широта', 'lat', w.lat)}${fld('Долгота', 'lng', w.lng)}</details>
@@ -1247,9 +1247,11 @@
           <input data-ak="param" type="number" step="any" value="${g.a.param}" ${ACTIONS[g.a.type].unit ? '' : 'disabled'} title="${ACTIONS[g.a.type].unit}"><button data-adel title="Удалить">✕</button></div>`).join('')}</div>
         <div class="row"><select id="newAct" style="flex:1">${opt(actOpts, 1)}</select><button class="btn sm" id="addAct" ${w.actions.length >= 15 ? 'disabled' : ''}>+ Добавить</button></div>
         <div class="row"><button class="btn sm" data-q="1">📷</button><button class="btn sm" data-q="2">⏺ старт</button><button class="btn sm" data-q="3">⏹ стоп</button><button class="btn sm" data-q="0">⏸ 2с</button><button class="btn sm" data-q="pano">Панорама 360°</button></div>`;
+      let hdSnap = false;
       insp.onchange = e => {
         const el = e.target;
         if (el.id === 'wConv') { if (el.value) convert('wp', w.id, el.value); return; }
+        if (el.id === 'wHdR') { hdSnap = false; inspKey = ''; Core.changed(); return; }
         if (el.dataset.ak) { const k = +el.closest('[data-a]').dataset.a; Core.snap(); w.actions[k][el.dataset.ak] = parseFloat(el.value); if (el.dataset.ak === 'type') w.actions[k].param = ACTIONS[w.actions[k].type].def; inspKey = ''; Core.changed(); return; }
         const k = el.dataset.k; if (!k) return; Core.snap();
         if (k === 'photoMode' || k === 'photoVal') {
@@ -1259,8 +1261,18 @@
         else if (k === 'hm') { if (el.value) w.hm = el.value; else delete w.hm; inspKey = ''; }
         else if (k === 'gkeep') { if (el.checked) w.gkeep = true; else delete w.gkeep; inspKey = ''; }
         else if (k === 'zoom') { const z = parseFloat(el.value); if (z >= 1) w.zoom = Math.min(4, z); else delete w.zoom; }
+        else if (k === 'heading') { const v = readVal(el); if (v != null && !isNaN(v)) { w.heading = ((v % 360) + 360) % 360; if ((w.hm || S.m.settings.headingMode) !== 'custom') { w.hm = 'custom'; inspKey = ''; toast('Курс этой точки теперь «задать угол»', '', 4000); } } }
         else { const v = readVal(el); if (v != null && !isNaN(v)) w[k] = v; }
         Core.changed();
+      };
+      // heading slider: live while dragging (one undo step), switches the point to «задать угол»
+      insp.oninput = e => {
+        if (e.target.id !== 'wHdR') return;
+        let v = +e.target.value; if (e.shiftKey) v = Math.round(v / 15) * 15 % 360;
+        if (!hdSnap) { Core.snap(); hdSnap = true; }
+        if ((w.hm || S.m.settings.headingMode) !== 'custom') { w.hm = 'custom'; toast('Курс этой точки теперь «задать угол»', '', 4000); }
+        w.heading = v; const f = $('[data-k=heading]', insp); if (f) f.value = v;
+        refresh(); Core.emit('change', {});
       };
       insp.onclick = e => {
         const b = e.target.closest('button'); if (!b) return;
@@ -1309,7 +1321,7 @@
       };
       return;
     }
-    insp.onchange = null; insp.onclick = null;
+    insp.onchange = null; insp.onclick = null; insp.oninput = null;
     insp.innerHTML = `<div class="empty"><b>Параметры точки</b> ${tip('Здесь появятся параметры точки, по которой вы кликнули на карте: высота, камера, скорость, действия.')}<br><br>
       <div class="howto"><div><b>Клик</b> по карте</div><span>новая точка маршрута</span>
       <div><b>Клик</b> по точке</div><span>её параметры здесь</span>
@@ -1332,6 +1344,7 @@
       $('#pInfo').innerHTML = `<span>Рельеф</span><b>${g !== undefined ? Math.round(g) + ' м' : '…'}</b><span>Точек смотрят сюда</span><b>${S.m.waypoints.filter(w => w.poi === p.id).length}</b>`;
     } else if (S.sel.size === 1) {
       const i = Core.wpIndex([...S.sel][0]), w = S.m.waypoints[i]; if (!w) return;
+      { const r = $('#wHdR', insp); if (r && r !== document.activeElement) r.value = Math.round(((Core.effHeading(i) ?? w.heading) % 360 + 360) % 360); }
       syncForm(insp, k => k === 'heading' ? r1(Core.effHeading(i) ?? w.heading) : k === 'gimbal' ? r1(Core.effGimbal(i) ?? w.gimbal) : k === 'poi' ? (w.poi || '') : k === 'hm' ? (w.hm || '') : k === 'gkeep' ? !!w.gkeep : k === 'zoom' ? (w.zoom ?? '') : k === 'photoMode' ? (w.photoDist ? 'dist' : w.photoTime ? 'time' : 'none') : k === 'photoVal' ? (w.photoDist || w.photoTime || '') : k === 'lat' || k === 'lng' ? +w[k].toFixed(7) : w[k]);
       Core.Elev.request([w, Core.homePt()].filter(Boolean));
       const agl = Core.wpAGL(w), asl = Core.wpASL(w), W = S.m.waypoints;

@@ -63,6 +63,30 @@ const groups = {
     ok('без ошибок в консоли', p.errs.length === 0, p.errs);
     await p.close();
   },
+  async params(b) {
+    const p = await page(b, route);
+    // a new point takes the parameters of the previous one
+    const r = await p.evaluate(() => { const W = WS.Core.S.m.waypoints, L = W[W.length - 1]; Object.assign(L, { alt: 73, gimbal: -55, speed: 6, curve: 14, hm: 'custom', heading: 210, zoom: 2, photoTime: 3 }); WS.Core.changed(); return true; });
+    const c = await p.evaluate(() => { const m = WS.map, q = m.latLngToContainerPoint([12.2490, 109.2030]), r = m.getContainer().getBoundingClientRect(); return { x: r.left + q.x, y: r.top + q.y }; });
+    await p.evaluate(() => WS.map.setView([12.247, 109.2], 16, { animate: false })); await p.waitForTimeout(300);
+    const c2 = await p.evaluate(() => { const r = WS.map.getContainer().getBoundingClientRect(); return { x: r.left + r.width * 0.62, y: r.top + r.height * 0.35 }; });
+    await p.mouse.click(c2.x, c2.y); await p.waitForTimeout(300);
+    const n = await p.evaluate(() => { const W = WS.Core.S.m.waypoints, w = W[W.length - 1]; return { n: W.length, alt: w.alt, gimbal: w.gimbal, speed: w.speed, curve: w.curve, hm: w.hm, heading: w.heading, zoom: w.zoom, photoTime: w.photoTime, actions: w.actions.length }; });
+    n.at = await p.evaluate(c => { const e = document.elementFromPoint(c.x, c.y); return e && (e.tagName + '#' + e.id + '.' + e.className + ' < ' + (e.parentElement && (e.parentElement.id + '.' + e.parentElement.className)) + ' html:' + e.outerHTML.slice(0, 120)); }, c2); n.mode = await p.evaluate(() => WS.Core.S.mode);
+    ok('новая точка — с параметрами предыдущей', n.n === 4 && n.alt === 73 && n.gimbal === -55 && n.speed === 6 && n.curve === 14 && n.hm === 'custom' && n.heading === 210 && n.zoom === 2 && n.photoTime === 3 && n.actions === 0, n);
+    // heading slider on a point in «as in mission» mode
+    await p.evaluate(() => { const W = WS.Core.S.m.waypoints; delete W[1].hm; WS.Core.S.sel.clear(); WS.Core.S.sel.add(W[1].id); WS.Core.changed(); }); await p.waitForTimeout(300);
+    ok('ползунок курса есть', await p.evaluate(() => !!document.querySelector('#wHdR')));
+    const u0 = await p.evaluate(() => WS.Core.S.undo.length);
+    await p.evaluate(() => { const r = document.querySelector('#wHdR'); for (const v of [100, 120, 135]) { r.value = v; r.dispatchEvent(new Event('input', { bubbles: true })); } r.dispatchEvent(new Event('change', { bubbles: true })); }); await p.waitForTimeout(300);
+    const h = await p.evaluate(() => { const w = WS.Core.S.m.waypoints[1]; return { hm: w.hm, heading: w.heading, eff: WS.Core.effHeading(1), field: document.querySelector('[data-k=heading]').value, undo: WS.Core.S.undo.length }; });
+    ok('ползунок задаёт курс и переключает на «задать угол»', h.hm === 'custom' && h.heading === 135 && Math.round(h.eff) === 135 && +h.field === 135, h);
+    ok('перетаскивание ползунка — один шаг отмены', h.undo - u0 === 1, { u0, u1: h.undo });
+    await p.fill('[data-k=heading]', '271'); await p.press('[data-k=heading]', 'Enter'); await p.waitForTimeout(200);
+    ok('точный ввод курса стрелками/числом', await p.evaluate(() => WS.Core.S.m.waypoints[1].heading === 271 && +document.querySelector('#wHdR').value === 271));
+    ok('без ошибок в консоли', p.errs.length === 0, p.errs);
+    await p.close();
+  },
   async io(b) {
     const p = await page(b, route);
     const r = await p.evaluate(async () => {

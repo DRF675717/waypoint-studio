@@ -582,3 +582,8 @@ body.light #imgInfo{background:#fffffff0;color:#111a22}
 .qcam{left:52px}
 #imgInfo{left:auto;right:10px;bottom:26px;max-width:min(560px,calc(100% - 120px))}
 #simMarks u{bottom:auto;top:10px;height:2px;opacity:.9}
+
+/* heading slider in the point panel */
+.hdsl{margin:-2px 0 8px}
+.hdsl input[type=range]{width:100%;margin:0;height:20px;accent-color:var(--acc)}
+.hdsl .hdt{display:flex;justify-content:space-between;font-size:10px;color:var(--mute);margin-top:-2px}

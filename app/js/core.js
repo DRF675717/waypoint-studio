@@ -32,6 +32,15 @@ const Core = (() => {
     const s = m.settings;
     return { id: id(), lat: p.lat, lng: p.lng, alt: p.alt ?? s.defAlt, speed: 0, heading: 0, curve: s.defCurve, gimbal: p.gimbal ?? s.defGimbal, poi: null, actions: [], photoTime: 0, photoDist: 0 };
   }
+  // a new point continues the previous one: same height, camera, speed, curve, heading, point of interest, zoom,
+  // interval shooting (actions are not copied — a «start recording» or a panorama must not repeat by itself)
+  const LIKE = ['alt', 'gimbal', 'speed', 'curve', 'heading', 'hm', 'poi', 'gkeep', 'zoom', 'photoTime', 'photoDist'];
+  function newWaypointLike(p, prev, m) {
+    const w = newWaypoint(p, m); if (!prev) return w;
+    LIKE.forEach(k => { if (prev[k] !== undefined) w[k] = prev[k]; else delete w[k]; });
+    if (p.alt != null) w.alt = p.alt;
+    return w;
+  }
   const S = { m: newMission(), sel: new Set(), selPoi: null, selHome: false, mode: 'wp', undo: [], redo: [] };
 
   // ---------- undo / redo ----------
@@ -397,5 +406,5 @@ const Core = (() => {
     if (ap) { if (h < 1 || h > 12) return null; if (ap === 'pm' || ap === 'пп') h = h % 12 + 12; else h = h % 12; }
     return h < 24 && mi < 60 ? [h, mi] : null;
   }
-  return { fmtDate, fmtTime, hm, parseTime, fmtCfg, setFmt, recPlan, actGroups, S, id, on, emit, snap, undo, redo, changed, store, library, saveToLibrary, loadMission, newMission, newWaypoint, defaultSettings, drone, wpIndex, poiById, homePt, Elev, groundAt, wpASL, wpRel, wpAGL, poiASL, effHeading, effGimbal, pathGeometry, curveMeters, stats, profile, validate, targetName, actionTime, segTime };
+  return { newWaypointLike, fmtDate, fmtTime, hm, parseTime, fmtCfg, setFmt, recPlan, actGroups, S, id, on, emit, snap, undo, redo, changed, store, library, saveToLibrary, loadMission, newMission, newWaypoint, defaultSettings, drone, wpIndex, poiById, homePt, Elev, groundAt, wpASL, wpRel, wpAGL, poiASL, effHeading, effGimbal, pathGeometry, curveMeters, stats, profile, validate, targetName, actionTime, segTime };
 })();
