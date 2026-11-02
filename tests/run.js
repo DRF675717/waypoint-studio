@@ -153,7 +153,8 @@ const groups = {
 // the loader inside the app bundle: picks a light update only when it is newer, for this shell and not failed
 async function loaderTest() {
   console.log('\n• loader (лёгкие обновления)');
-  const os = require('os'), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wsl-')), ud = path.join(tmp, 'ud'), bundle = path.join(tmp, 'bundle');
+  const os = require('os'), tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'wsl-'))), // realpath: macOS /tmp → /private/tmp (require cache keys)
+    ud = path.join(tmp, 'ud'), bundle = path.join(tmp, 'bundle');
   fs.mkdirSync(bundle); fs.mkdirSync(path.join(ud, 'live', '9.9.9'), { recursive: true });
   const src = path.join(__dirname, '..', 'desktop');
   fs.copyFileSync(path.join(src, 'main.js'), path.join(bundle, 'main.js'));
@@ -168,7 +169,7 @@ async function loaderTest() {
     fs.writeFileSync(path.join(L, 'manifest.json'), JSON.stringify({ version: '9.9.9', shell }));
     ok('новая лёгкая версия загружается', run() === 'live');
     ok('второй запуск без открытого окна → откат на встроенную', run() === 'bundle' && fs.existsSync(path.join(L, '.failed')));
-    fs.rmSync(path.join(L, '.failed')); fs.rmSync(path.join(L, '.starting'), { force: true });
+    fs.rmSync(path.join(L, '.failed'), { force: true }); fs.rmSync(path.join(L, '.starting'), { force: true });
     fs.writeFileSync(path.join(L, 'manifest.json'), JSON.stringify({ version: '9.9.9', shell: shell + 1 }));
     ok('лёгкая версия для другой оболочки не загружается', run() === 'bundle');
     fs.writeFileSync(path.join(L, 'manifest.json'), JSON.stringify({ version: '2.8.0', shell }));
