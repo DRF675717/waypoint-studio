@@ -1,7 +1,7 @@
 {
   "name": "waypoint-studio",
   "productName": "Waypoint Studio",
-  "version": "2.9.0",
+  "version": "2.9.7",
   "description": "Локальный планировщик полётов для дронов DJI",
   "main": "main.js",
   "author": "Pavel Dorofeev"

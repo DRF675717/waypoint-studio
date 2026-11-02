@@ -1,0 +1,26 @@
+Waypoint Studio — Freeware License
+
+Copyright (c) 2026 Pavel Dorofeev. All rights reserved.
+
+1. Permission is granted, free of charge, to any person to download, install and use Waypoint Studio
+   (the "Software") for personal and commercial drone work, and to share unmodified copies of the official
+   release files together with this license.
+
+2. The source code is published for transparency, review and learning. Without prior written permission
+   of the copyright holder you may NOT:
+   a) sell the Software or include it in a product or service that is sold;
+   b) modify, translate, adapt or create derivative works of the Software, or distribute modified versions;
+   c) remove or alter copyright notices, this license, or the author's name.
+
+3. Third-party components keep their own licenses (see THIRD_PARTY.md).
+
+4. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+   THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, INCLUDING DAMAGE TO DRONES, PROPERTY OR PERSONS,
+   ARISING FROM THE USE OF THE SOFTWARE OR OF THE FLIGHT PLANS IT PRODUCES.
+
+5. The pilot is solely responsible for every flight: check each route, local laws, no-fly zones, weather and
+   battery before take-off, and keep the drone in visual line of sight.
+
+DJI, DJI Fly, DJI Pilot, Mavic, Mini, Air and RC are trademarks of SZ DJI Technology Co., Ltd. Litchi is a trademark
+of VC Technology Ltd. Waypoint Studio is an independent project and is not affiliated with or endorsed by them.

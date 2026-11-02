@@ -453,10 +453,16 @@ async function createWindow() {
 
 // ---------------- Updates ----------------
 // Feed: a folder or an https URL with latest.json = { version, file | parts:[...], sha256, notes }.
-// Default feed: ~/Projects/WaypointStudio/.upd (where new builds are delivered). Can be changed in update.json (userData).
+// Default feed: ~/Projects/WaypointStudio/.upd if present, otherwise GitHub Releases. Can be changed in update.json (userData).
 const UPD = { state: 'idle', available: null, error: '', progress: 0 };
 function updConfig() { try { return JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'update.json'), 'utf8')); } catch (e) { return {}; } }
-function updFeed() { return updConfig().feed || path.join(app.getPath('home'), 'Projects', 'WaypointStudio', '.upd'); }
+// on the developer's Mac new builds arrive in ~/Projects/WaypointStudio/.upd; everyone else gets them from GitHub Releases
+const GITHUB_FEED = 'https://github.com/DRF675717/waypoint-studio/releases/latest/download';
+function updFeed() {
+  const c = updConfig().feed; if (c) return c;
+  const local = path.join(app.getPath('home'), 'Projects', 'WaypointStudio', '.upd');
+  return fs.existsSync(path.join(local, 'latest.json')) ? local : GITHUB_FEED;
+}
 const vnum = v => String(v || '0').split('.').map(x => parseInt(x, 10) || 0);
 const newer = (a, b) => { const x = vnum(a), y = vnum(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 async function feedRead(name, binary) {

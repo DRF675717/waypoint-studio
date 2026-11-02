@@ -1,76 +1,90 @@
-# Waypoint Studio
+<p align="center"><img src="app/icon.svg" width="96" alt="Waypoint Studio"></p>
 
-Планировщик маршрутов съёмки для дронов DJI: карта и 3D, симуляция полёта с видом из камеры, проверка маршрута
-(рельеф, зоны, батарея, ограничения приложения), генераторы (орбита, кинокадры, картирование, коридор, фасад),
-экспорт в DJI Fly / DJI Pilot 2 / Litchi / Google Earth и запись заданий прямо на пульт DJI RC 2 по USB.
-Программа работает на компьютере (macOS, Electron), интерфейс на русском и английском.
+# Waypoint Studio — free DJI waypoint mission planner for Mac
 
-*A route planner for DJI drone shooting: 2D map and 3D view, flight simulation with the camera view, route check
-(terrain, no-fly zones, battery, app limits), generators (orbit, cine shots, mapping, corridor, facade), export to DJI
-Fly / DJI Pilot 2 / Litchi / Google Earth, and writing missions straight to the DJI RC 2 remote over USB. Runs locally
-(macOS, Electron); the interface is in Russian and English.*
+**Plan cinematic drone flights on a satellite map, check them in 3D, watch the flight from the drone's camera — and
+send the mission straight to your DJI RC 2 over USB. Free.**
 
-## Структура / Layout
+Waypoint Studio is a desktop route planner for DJI drones (Mini 4 Pro, Mini 5 Pro, Air 3, Mavic 3/4 and other DJI Fly /
+DJI Pilot 2 aircraft). It works like Litchi Mission Hub, but runs locally on your Mac, shows every route in 3D over real
+terrain, and simulates the whole flight before you take off.
+
+[**⬇ Download for macOS (Apple Silicon)**](https://github.com/DRF675717/waypoint-studio/releases/latest) ·
+[☕ Support the project](BUYMEACOFFEE_URL) · [Русская версия ниже](#по-русски)
+
+## Features
+
+* **Map & 3D** — satellite / hybrid / topo maps (Esri, Google, Airbus/CNES, Vantor/Maxar with your key), photorealistic
+  3D view with terrain and buildings, the camera frame pyramid at every point.
+* **Flight simulation** — play the route in 2D or 3D, chase view behind the drone, live drone-camera window, start from any
+  waypoint, height profile with terrain clearance.
+* **Every DJI setting per waypoint** — height, speed, curve, heading (along the path / POI / custom angle / manual), gimbal
+  tilt, zoom, actions (photo, video, hover, rotate, tilt), interval photos, multiple POIs, smooth camera turns.
+* **Pre-flight check** — terrain clearance, legal height, distance, battery use, app limits (points, actions), official
+  no-fly zones, line of sight to the remote, sun and golden hour, wind forecast.
+* **Generators** — orbit / spiral, cinematic shots (dronie, rocket, reveal, fly-by, approach), area mapping
+  (photogrammetry grid), corridor, building facade, whole-route transform and terrain following.
+* **Export** — DJI Fly KMZ (also split by battery), DJI Pilot 2 KMZ, Litchi CSV, Google Earth KML with a virtual flight,
+  GPX, GeoJSON. Import of all of them.
+* **DJI RC 2 over USB** — open missions from the remote, edit them, write them back with a byte-by-byte check and an
+  automatic backup.
+* **Plan vs. real flight** — load an Airdata / FlightReader / Litchi CSV log and see where the drone deviated.
+* **English and Russian interface.** Light updates install in seconds.
+
+## Install
+
+1. Download `WaypointStudio-<version>-macOS-arm64.zip` from [Releases](https://github.com/DRF675717/waypoint-studio/releases/latest)
+   and unzip it.
+2. Move **Waypoint Studio.app** to *Applications*.
+3. The app is not notarized by Apple, so the first time open Terminal and run
+   `xattr -dr com.apple.quarantine "/Applications/Waypoint Studio.app"`, then open it normally
+   (or right-click → Open).
+
+Requires macOS 12+ on Apple Silicon (M1 or newer). Free maps work without keys; Google Maps, Cesium ion (photorealistic
+3D), Airbus and Maxar keys are optional and are stored only on your Mac.
+
+## Safety
+
+The pilot is responsible for every flight. Always check the route, local rules, no-fly zones, weather and battery before
+take-off and keep the drone in visual line of sight.
+
+## License
+
+Freeware — free to download and use, including for paid drone work; modification and resale are not allowed. See
+[LICENSE](LICENSE). Third-party components: [THIRD_PARTY.md](THIRD_PARTY.md). DJI and Litchi are trademarks of their
+owners; this project is independent and not affiliated with them.
+
+---
+
+## По-русски
+
+Waypoint Studio — бесплатный планировщик маршрутов съёмки для дронов DJI на Mac: карта и 3D над рельефом, симуляция
+полёта с видом из камеры, проверка маршрута (рельеф, зоны, батарея, ограничения приложения), генераторы (орбита,
+кинокадры, картирование, коридор, фасад), экспорт в DJI Fly / DJI Pilot 2 / Litchi / Google Earth и запись заданий
+прямо на пульт DJI RC 2 по USB. Интерфейс на русском и английском.
+
+### Для разработки
 
 | Папка | Что внутри |
 |---|---|
 | `app/` | интерфейс (HTML/CSS/JS): карта, 3D, симуляция, проверки, экспорт, пульт, переводы (`js/i18n-en.js`) |
-| `desktop/` | оболочка Electron: `main.js` — загрузчик (внутри подписанной программы), `core.js` — программа (локальный сервер, пульт, обновления) |
+| `desktop/` | оболочка Electron: `main.js` — загрузчик, `core.js` — программа (локальный сервер, пульт, обновления) |
 | `bridge/` | `wsbridge.c` — USB-помощник для пульта DJI RC 2 (libmtp) |
 | `tests/` | `run.js` — автотесты, `fuzz.js` — случайные маршруты, `uiaudit.js` — проверка интерфейса на обоих языках |
 | `tools/` | сборка (`build.sh`, `mkupd.sh`, `mklight.sh`) и правка переводов (`retip.py`, `setdict.py`) |
 
-Сторонние библиотеки и их лицензии — в [THIRD_PARTY.md](THIRD_PARTY.md).
-
-## Запуск в браузере (без оболочки) / Run in a browser
-
 ```
-cd app && python3 -m http.server 8765      # затем откройте http://localhost:8765
-```
-Работа с пультом, геозоны и обновления доступны только в настольной версии.
-
-## Проверка перед выпуском / Checks before a release
-
-```
-npm i -D playwright@1.60.0 && npx playwright install chromium   # один раз / once
-node tests/run.js              # автотесты + 120 случайных маршрутов
-node tests/fuzz.js 300 7       # больше случайных маршрутов: <количество> <seed>
-node tests/uiaudit.js          # обрезанные / перекрытые надписи, непереведённые тексты (RU и EN, 1440×900 и 1280×800)
-npx eslint                     # статическая проверка кода
+cd app && python3 -m http.server 8765      # запуск в браузере (без пульта, геозон и обновлений)
+npm i -D playwright@1.60.0 && npx playwright install chromium
+node tests/run.js                          # автотесты + 120 случайных маршрутов
+node tests/fuzz.js 300 7                   # больше случайных маршрутов: <количество> <seed>
+node tests/uiaudit.js                      # обрезанные / перекрытые надписи, непереведённые тексты
+npx eslint                                 # статическая проверка
 ```
 
-Что проверяет фаззер: симуляция без NaN и без рывков курса, расчёты, проверка маршрута, каждый экспорт и обратный
-импорт (координаты, высоты, действия, наклон камеры). Если экспорт отказывает, во вкладке «Проверка» уже должна быть
-ошибка.
+Обновления: полное (~116 МБ) — при смене Electron, USB-помощника или загрузчика; лёгкое (~250 КБ) — всё остальное,
+ставится в `~/Library/Application Support/Waypoint Studio/live/<версия>` и откатывается само, если окно не открылось.
+Программа берёт обновления из GitHub Releases.
 
-## Переводы / Translations
-
-Программа написана по-русски; английский интерфейс получается словарём фраз `app/js/i18n-en.js`, который применяется
-на лету (самая длинная фраза — первой, только целые слова). Чтобы поменять текст и его перевод сразу:
-
-```
-python3 tools/retip.py pairs.json    # [[«старый русский», «новый русский», «english»], …]
-python3 tools/setdict.py pairs.json  # [[«русский», «english»], …] — только перевод
-```
-
-## Обновления / Updates
-
-* **Полное** (~116 МБ) — когда меняются Electron, USB-помощник или загрузчик (`desktop/main.js`, константа `SHELL`).
-* **Лёгкое** (~250 КБ) — всё остальное: `core.js` + `app/` ставятся в
-  `~/Library/Application Support/Waypoint Studio/live/<версия>`. Если лёгкая версия не открыла окно, при следующем
-  запуске программа сама вернётся к встроенной.
-
-## Ключи / Keys
-
-Ключи Google Maps, Cesium ion, Airbus и Maxar вводятся в настройках программы и хранятся только на компьютере
-пользователя (`app/config.js` и папка данных программы). В репозиторий они не попадают.
-
-## Известные ограничения / Known limitations
-
-* DJI Fly не поддерживает действие «поворот дрона» и интервальную съёмку в заданиях — программа предупреждает об этом
-  во вкладке «Проверка» и не даёт записать такой маршрут.
-* При обратном чтении KMZ для DJI Pilot 2 с режимом подвеса «Не управлять» маршрут из двух точек, в каждой из которых
-  первое действие — «Наклон камеры», читается неоднозначно (первый наклон может стать наклоном точки).
-* Ответственность за полёт несёт пилот: перед взлётом проверяйте маршрут, зоны и погоду.
-
-© Pavel Dorofeev. Все права защищены / All rights reserved.
+Известное ограничение: при обратном чтении KMZ для DJI Pilot 2 с режимом камеры «Не управлять» маршрут из двух точек,
+где в обеих точках первое действие — «Наклон камеры», читается неоднозначно.
