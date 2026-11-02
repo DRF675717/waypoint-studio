@@ -128,8 +128,8 @@ const groups = {
   },
   async perf(b) {
     const p = await page(b, () => { const S = WS.Core.S; S.m.home = { lat: 12.2448, lng: 109.1950 }; S.m.waypoints = []; for (let i = 0; i < 200; i++) S.m.waypoints.push(WS.Core.newWaypoint({ lat: 12.24 + (i % 20) * 0.0008, lng: 109.19 + Math.floor(i / 20) * 0.0008 + (i % 2) * 0.0002, alt: 40 + (i % 7) * 5 }, S.m)); WS.Core.changed({ fit: true }); });
-    const t = await p.evaluate(() => { const t0 = performance.now(); for (let k = 0; k < 5; k++) { WS.Core.S.m.waypoints[k].alt += 1; WS.Core.changed(); } return (performance.now() - t0) / 5; });
-    ok(`200 точек: перерисовка после правки < 150 мс (${Math.round(t)} мс)`, t < 150, t);
+    const t = await p.evaluate(async () => { const ts = []; for (let k = 0; k < 6; k++) { await new Promise(r => setTimeout(r, 250)); const t0 = performance.now(); WS.Core.S.m.waypoints[k].alt += 1; WS.Core.changed(); await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); ts.push(performance.now() - t0); } ts.sort((a, b) => a - b); return ts[3]; });
+    ok(`200 точек: правка точки и перерисовка < 100 мс (${Math.round(t)} мс)`, t < 100, t);
     const v = await p.evaluate(() => { const t0 = performance.now(); for (let k = 0; k < 5; k++) WS.Core.validate(); return (performance.now() - t0) / 5; });
     ok(`200 точек: проверка маршрута < 60 мс (${Math.round(v)} мс)`, v < 60, v);
     const s = await p.evaluate(() => { const t0 = performance.now(); const tl = SimCore.build(); for (let k = 0; k < 600; k++) SimCore.at(tl, tl.T * k / 600); return (performance.now() - t0); });

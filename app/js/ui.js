@@ -233,8 +233,9 @@
   };
   let pathCasing, pathLine, simActive = false;
 
+  let recCache = null; // recPlan for the render in progress (avoid recomputing it for every marker)
   function wpIcon(w, i) {
-    const n = S.m.waypoints.length, recP = Core.recPlan();
+    const n = S.m.waypoints.length, recP = recCache || Core.recPlan();
     const h = Core.effHeading(i);
     const cls = (S.sel.has(w.id) ? ' sel' : '') + (i === 0 ? ' first' : '') + (typeof Zones !== 'undefined' && Zones.zoneWps.has(i) ? ' inzone' : '') ; const rb = recP && recP[i] ? (recP[i].out && !recP[i].in ? '<div class="recb">● REC</div>' : recP[i].in && !recP[i].out ? '<div class="recb stop">■ REC</div>' : '') : '';
     const ic = (w.actions.some(a => a.type === 1) || w.photoDist || w.photoTime ? '📷' : '') + (w.actions.some(a => a.type === 2) ? '⏺' : '') + (w.actions.some(a => a.type === 0) ? '⏸' : '');
@@ -255,9 +256,10 @@
     b.title = 'Это предупреждение: маршрут всё равно можно записать на пульт. Нажмите — подробности во вкладке «Проверка».';
   }
   let dragStart = null;
+  const wpMk = new Map(); // waypoint markers are kept between renders and only updated (fast with hundreds of points)
   function renderMap() {
-    Object.values(G).forEach(g => g !== G.sim && g.clearLayers());
-    const W = S.m.waypoints;
+    Object.entries(G).forEach(([k, g]) => k !== 'sim' && k !== 'wp' && g.clearLayers());
+    const W = S.m.waypoints; recCache = Core.recPlan();
     // path
     const geo = Core.pathGeometry();
     pathCasing = L.polyline(geo, { color: '#1a1400', weight: 3.2, opacity: .5, lineJoin: 'round', interactive: false }).addTo(G.path);
@@ -290,26 +292,20 @@
       mk.on('click', () => insertAt(i + 1, p));
     }
     // waypoints
+    const seen = new Set();
     W.forEach((w, i) => {
-      const mk = L.marker(w, { icon: wpIcon(w, i), draggable: true, zIndexOffset: S.sel.has(w.id) ? 1000 : 0, autoPan: true }).addTo(G.wp);
-      mk._wid = w.id;
-      if (W.length < 150) mk.bindTooltip(`Точка №${i + 1} · ${r1(w.alt)} м<br><small>клик — параметры · тащите — переместить · правый клик — меню</small>`, { direction: 'top', offset: [0, -16], opacity: .95 });
-      mk.on('click', e => { L.DomEvent.stop(e); selectWp(w.id, e.originalEvent); if (isMobile()) { document.body.classList.add('showR'); document.body.classList.remove('showL'); } });
-      mk.on('contextmenu', e => { L.DomEvent.stop(e); if (!S.sel.has(w.id)) selectWp(w.id, {}); ctxWp(e, i); });
-      mk.on('dragstart', () => {
-        Core.snap();
-        if (!S.sel.has(w.id)) { S.sel.clear(); S.sel.add(w.id); }
-        dragStart = { lat: w.lat, lng: w.lng, others: W.filter(o => S.sel.has(o.id) && o !== w).map(o => ({ o, lat: o.lat, lng: o.lng })) };
-      });
-      mk.on('drag', e => {
-        const p = e.target.getLatLng(); w.lat = p.lat; w.lng = p.lng;
-        const dl = p.lat - dragStart.lat, dg = p.lng - dragStart.lng;
-        dragStart.others.forEach(x => { x.o.lat = x.lat + dl; x.o.lng = x.lng + dg; });
-        if (dragStart.others.length) G.wp.eachLayer(l => { const o = dragStart.others.find(x => x.o.id === l._wid); if (o) l.setLatLng(o.o); });
-        const g2 = Core.pathGeometry(); pathLine.setLatLngs(g2); pathCasing.setLatLngs(g2);
-      });
-      mk.on('dragend', () => { dragStart = null; Core.changed(); });
+      seen.add(w.id);
+      let mk = wpMk.get(w.id);
+      if (!mk) { mk = makeWpMarker(w); wpMk.set(w.id, mk); }
+      mk._w = w; mk._i = i;
+      const icon = wpIcon(w, i), key = icon.options.html + '|' + (S.sel.has(w.id) ? 1 : 0);
+      if (mk._key !== key) { mk.setIcon(icon); mk._key = key; mk.setZIndexOffset(S.sel.has(w.id) ? 1000 : 0); }
+      const ll = mk.getLatLng(); if (ll.lat !== w.lat || ll.lng !== w.lng) mk.setLatLng(w);
+      const tt = W.length < 150 ? `Точка №${i + 1} · ${r1(w.alt)} м<br><small>клик — параметры · тащите — переместить · правый клик — меню</small>` : null;
+      if (mk._tt !== tt) { mk.unbindTooltip(); if (tt) mk.bindTooltip(tt, { direction: 'top', offset: [0, -16], opacity: .95 }); mk._tt = tt; }
     });
+    for (const [id, mk] of wpMk) if (!seen.has(id)) { G.wp.removeLayer(mk); wpMk.delete(id); }
+    recCache = null;
     // POIs
     S.m.pois.forEach(p => {
       const mk = L.marker(p, { icon: L.divIcon({ className: '', html: `<div class="poiw" data-poi="${p.id}"><div class="poim${S.selPoi === p.id ? ' sel' : ''}"></div><div class="palt">${escH(p.name || 'POI')} · ${r1(p.alt || 0)} м</div></div>`, iconSize: [14, 14], iconAnchor: [7, 7] }), draggable: true }).addTo(G.poi);
@@ -637,6 +633,27 @@
     $('#modeHint').textContent = '✥ Ведите мышью — точка следует за курсором · клик — поставить · Esc — отмена';
     map.getContainer().style.cursor = 'move';
     if (View3D.isOpen) View3D.startMove(kind === 'wp' ? Core.wpRel(o) : null, g => moveTo(g, true));
+  }
+  function makeWpMarker(w0) {
+    const mk = L.marker(w0, { icon: L.divIcon({ className: '', html: '' }), draggable: true, autoPan: true }).addTo(G.wp);
+    mk._wid = w0.id; mk._w = w0; mk._i = 0;
+    const W = () => S.m.waypoints;
+    mk.on('click', e => { L.DomEvent.stop(e); selectWp(mk._w.id, e.originalEvent); if (isMobile()) { document.body.classList.add('showR'); document.body.classList.remove('showL'); } });
+    mk.on('contextmenu', e => { L.DomEvent.stop(e); if (!S.sel.has(mk._w.id)) selectWp(mk._w.id, {}); ctxWp(e, mk._i); });
+    mk.on('dragstart', () => {
+      Core.snap(); const w = mk._w;
+      if (!S.sel.has(w.id)) { S.sel.clear(); S.sel.add(w.id); }
+      dragStart = { lat: w.lat, lng: w.lng, others: W().filter(o => S.sel.has(o.id) && o !== w).map(o => ({ o, lat: o.lat, lng: o.lng })) };
+    });
+    mk.on('drag', e => {
+      const p = e.target.getLatLng(), w = mk._w; w.lat = p.lat; w.lng = p.lng;
+      const dl = p.lat - dragStart.lat, dg = p.lng - dragStart.lng;
+      dragStart.others.forEach(x => { x.o.lat = x.lat + dl; x.o.lng = x.lng + dg; });
+      if (dragStart.others.length) G.wp.eachLayer(l => { const o = dragStart.others.find(x => x.o.id === l._wid); if (o) l.setLatLng(o.o); });
+      const g2 = Core.pathGeometry(); pathLine.setLatLngs(g2); pathCasing.setLatLngs(g2);
+    });
+    mk.on('dragend', () => { dragStart = null; Core.changed(); });
+    return mk;
   }
   function moveTo(p, from3d) {
     if (!moving) return; const o = objOf(moving.kind, moving.idv); if (!o) return;

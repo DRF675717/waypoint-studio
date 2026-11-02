@@ -385,7 +385,7 @@ const View3D = (() => {
       // the height is a small tag next to the pin head
       const e = add({ position: top,
         billboard: { image: pinImage(String(i + 1), sel ? 'sel' : i === 0 ? 'first' : 'wp'), width: 30, height: 40, verticalOrigin: C.VerticalOrigin.BOTTOM, disableDepthTestDistance: Number.POSITIVE_INFINITY, scaleByDistance: new C.NearFarScalar(300, 1, 8000, 0.7) },
-        label: { text: `${Math.round(w.alt)} м`, font: '600 11px -apple-system, Helvetica, sans-serif', fillColor: C.Color.WHITE, showBackground: true, backgroundColor: C.Color.fromCssColorString('#0b1117').withAlpha(0.72), backgroundPadding: new C.Cartesian2(5, 3),
+        label: { show: W.length <= 150 || sel || i % 5 === 0 || i === W.length - 1, text: `${Math.round(w.alt)} м`, font: '600 11px -apple-system, Helvetica, sans-serif', fillColor: C.Color.WHITE, showBackground: true, backgroundColor: C.Color.fromCssColorString('#0b1117').withAlpha(0.72), backgroundPadding: new C.Cartesian2(5, 3),
           horizontalOrigin: C.HorizontalOrigin.LEFT, verticalOrigin: C.VerticalOrigin.CENTER, pixelOffset: new C.Cartesian2(14, -28), disableDepthTestDistance: Number.POSITIVE_INFINITY, scaleByDistance: new C.NearFarScalar(300, 1, 8000, 0.7), translucencyByDistance: new C.NearFarScalar(3000, 1, 9000, 0) } });
       e.wsWp = w.id;
       // camera direction + 3D image frame (what gets into the shot)
