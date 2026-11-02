@@ -320,7 +320,7 @@ window.WS_EN = {
 "Камера (подвес)": "Camera (gimbal)",
 "Камера в точке": "Camera at point",
 "Камера дрона": "Drone camera",
-"Камера летит за дроном по маршруту и смотрит вдоль линии полёта": "The camera follows the drone along the route and looks along the flight line",
+"Камера за дроном смотрит туда же, куда камера дрона: кадр впереди, карта разворачивается по ходу. Колесо — ближе/дальше, перетаскивание — наклон и обзор, двойной клик — сброс": "The camera behind the drone looks where the drone camera looks: the frame is ahead, the map turns with the flight. Wheel — closer/farther, drag — tilt and look around, double click — reset",
 "Камера никогда не «скачет». Если в точке меняется курс (точка со своим курсом после участка «по курсу», смена режима, переход на": "The camera never «jumps». If the heading changes at a point (a point with its own heading after a «along the course» leg, a mode change, switching to",
 "Канада": "Canada",
 "Канада — Ванкувер": "Canada — Vancouver",

@@ -60,7 +60,7 @@ const View3D = (() => {
 • Правый клик — то же меню, что на карте: добавить точку/POI/взлёт, переместить, высота, камера, удалить
 • Жёлтая пирамида — кадр камеры: что попадёт в снимок с этой высоты и наклона
 • ▶ внизу — проиграть полёт; «Сзади» и «Камера дрона» — вид во время полёта">?</i><span id="v3src" class="v3src"></span>
-        <div class="v3grp"><button data-m="orbit" class="on" title="Свободный обзор">Обзор</button><button data-m="chase" title="Камера летит за дроном по маршруту и смотрит вдоль линии полёта">Сзади</button><button data-m="fpv" title="Вид из камеры дрона">Камера дрона</button></div>
+        <div class="v3grp"><button data-m="orbit" class="on" title="Свободный обзор">Обзор</button><button data-m="chase" title="Камера за дроном смотрит туда же, куда камера дрона: кадр впереди, карта разворачивается по ходу. Колесо — ближе/дальше, перетаскивание — наклон и обзор, двойной клик — сброс">Сзади</button><button data-m="fpv" title="Вид из камеры дрона">Камера дрона</button></div>
         <button class="v3b" id="v3frame" title="Рамка кадра камеры: что попадёт в снимок — у выбранной точки, а во время полёта — у дрона">▣ Кадр</button>
         <div class="v3grp" style="margin-left:0" title="Наклон вида (также: Shift или Ctrl + перетаскивание, колёсико мыши с нажатой средней кнопкой)"><button id="v3up" style="color:#fff" title="Смотреть более сверху">▲</button><button id="v3dn" style="color:#fff" title="Смотреть более сбоку">▼</button><button id="v3top" style="color:#fff" title="Вид строго сверху">⊤</button></div>
         <button class="v3b" id="v3cur" title="Шторка: полупрозрачная стена от земли до линии полёта — помогает видеть высоту над землёй">▥ Шторка</button>
@@ -184,7 +184,29 @@ const View3D = (() => {
     const ssc = viewer.scene.screenSpaceCameraController, ET = C.CameraEventType, KM = C.KeyboardEventModifier;
     ssc.tiltEventTypes = [ET.MIDDLE_DRAG, ET.PINCH, { eventType: ET.LEFT_DRAG, modifier: KM.CTRL }, { eventType: ET.LEFT_DRAG, modifier: KM.SHIFT }, { eventType: ET.RIGHT_DRAG, modifier: KM.CTRL }];
     ssc.minimumZoomDistance = 15;
+    // «Сзади»: the camera is driven by the drone; the mouse only changes distance (wheel / pinch) and tilt (drag) —
+    // live, also during the flight
+    const cv = viewer.canvas; let drag = null;
+    cv.addEventListener('wheel', e => {
+      if (mode !== 'chase') return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      chaseRange = Math.max(6, Math.min(3000, chaseRange * Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))));
+      saveChase(); if (!playing) showDrone();
+    }, { capture: true, passive: false });
+    cv.addEventListener('pointerdown', e => { if (mode === 'chase') drag = { y: e.clientY, x: e.clientX, tilt: chaseTilt, yaw: chaseYaw }; }, true);
+    window.addEventListener('pointermove', e => {
+      if (!drag || mode !== 'chase') return;
+      chaseTilt = Math.max(-60, Math.min(60, drag.tilt + (e.clientY - drag.y) * 0.25));
+      chaseYaw = Geo.norm180(drag.yaw + (e.clientX - drag.x) * 0.3);
+      if (!playing) showDrone();
+    });
+    window.addEventListener('pointerup', () => { if (drag) { drag = null; saveChase(); } });
+    cv.addEventListener('dblclick', e => { if (mode !== 'chase') return; e.stopImmediatePropagation(); chaseTilt = 0; chaseYaw = 0; saveChase(); if (!playing) showDrone(); }, true);
   }
+  // chase-view distance / tilt / look-around, remembered between sessions
+  let chaseRange = 55, chaseTilt = 0, chaseYaw = 0;
+  try { const s = JSON.parse(localStorage.getItem('ws.chase')); if (s && s.r > 0) { chaseRange = s.r; chaseTilt = s.t || 0; } } catch (e) { /* ignore */ }
+  function saveChase() { try { localStorage.setItem('ws.chase', JSON.stringify({ r: Math.round(chaseRange * 10) / 10, t: Math.round(chaseTilt) })); } catch (e) { /* ignore */ } }
 
   // The free view must never end up lying on the ground looking at the horizon: from there Cesium cannot tilt back up
   // (the pivot point is lost). Keep the camera ≥ 25 m above the surface and looking ≥ 4° down.
@@ -656,13 +678,13 @@ const View3D = (() => {
       viewer.camera.frustum.fov = C.Math.toRadians(Math.max(fp.hfov, 30));
       viewer.camera.setView({ destination: pos, orientation: { heading: C.Math.toRadians(c.hd), pitch: C.Math.toRadians(c.gb), roll: 0 } });
     } else if (mode === 'chase') {
-      // «Сзади» = behind the drone ALONG THE ROUTE (direction of travel), not behind its nose: when the camera looks
-      // sideways (own course, POI) the view still looks down the flight path. Direction = from where the drone was
-      // 1.5 s ago to where it will be in 1.5 s (smooth on curves); kept while hovering.
-      const pa = at(Math.max(0, t - 1.5)), pb = at(Math.min(tl.T, t + 1.5));
-      if (Geo.dist(pa, pb) > 2) { const want = Geo.bearing(pa, pb); chaseHd = chaseHd == null ? want : Geo.norm360(chaseHd + Geo.norm180(want - chaseHd) * 0.25); }
-      else if (chaseHd == null) chaseHd = c.hd || 0;
-      viewer.camera.lookAt(pos, new C.HeadingPitchRange(C.Math.toRadians(chaseHd), C.Math.toRadians(-32), 55));
+      // «Сзади» = behind the drone's camera: the view looks where the camera looks (drone heading, POI, own course),
+      // so the frame is ahead of us and the map turns with the drone. Tilt follows the gimbal: horizon → low view,
+      // straight down → steep view onto the frame. Mouse: wheel — distance, drag — tilt / look around.
+      const want = c.hd || 0;
+      chaseHd = chaseHd == null ? want : Geo.norm360(chaseHd + Geo.norm180(want - chaseHd) * 0.2);
+      const pt = Math.max(-88, Math.min(-3, -12 + (c.gb || 0) * 0.55 - chaseTilt));
+      viewer.camera.lookAt(pos, new C.HeadingPitchRange(C.Math.toRadians(chaseHd + chaseYaw), C.Math.toRadians(pt), chaseRange));
     } else if (followOn() && drone.show) {
       // «Карта за дроном» in the free view: the camera moves together with the drone, keeping the user's angle and distance
       if (lastDronePos && !followJump) { const d = C.Cartesian3.subtract(pos, lastDronePos, new C.Cartesian3()); if (C.Cartesian3.magnitude(d) < 5000) viewer.camera.position = C.Cartesian3.add(viewer.camera.position, d, new C.Cartesian3()); }
@@ -730,7 +752,7 @@ const View3D = (() => {
   }
   document.addEventListener('change', e => { if (e.target && e.target.id === 'simFollow' && isOpen && e.target.checked) { followJump = true; if (!playing) showDrone(); } });
   function setMode(m) {
-    mode = m; lastDronePos = null; chaseHd = null; followJump = m === 'orbit' && followOn(); root.querySelectorAll('.v3grp button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    mode = m; lastDronePos = null; chaseHd = null; chaseYaw = 0; if (viewer) viewer.scene.screenSpaceCameraController.enableInputs = m === 'orbit'; followJump = m === 'orbit' && followOn(); root.querySelectorAll('.v3grp button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
     if (m === 'orbit') { viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); viewer.camera.frustum.fov = Cesium.Math.toRadians(60); }
     if (m !== 'orbit' && !playing && (t === 0 || (tl && t >= tl.T))) play();
     showDrone(); pipUpdate(true);
@@ -755,7 +777,7 @@ const View3D = (() => {
   function close() {
     isOpen = false; pause(); Core.emit('simtel', null);
     document.querySelectorAll('[data-cmd=view3d]').forEach(b => b.classList.remove('on3d')); if (viewer) { viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); }
-    if (root) root.hidden = true; mode = 'orbit'; if (root) root.querySelectorAll('.v3grp button').forEach(b => b.classList.toggle('on', b.dataset.m === 'orbit'));
+    if (root) root.hidden = true; mode = 'orbit'; if (viewer) viewer.scene.screenSpaceCameraController.enableInputs = true; if (root) root.querySelectorAll('.v3grp button').forEach(b => b.classList.toggle('on', b.dataset.m === 'orbit'));
     if (viewer) { viewer.camera.frustum.fov = Cesium.Math.toRadians(60); }
   }
   let selKey = '';
