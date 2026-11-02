@@ -105,6 +105,18 @@ const groups = {
     const p = await page(b, route);
     await p.click('#simPlay'); await p.waitForTimeout(1200); await p.click('#simPlay');
     ok('симуляция двигает дрона', await p.evaluate(() => !!(WS.Sim.cur && WS.Sim.cur.d > 0)));
+    { // «Смотреть на POI» turns the camera to it; leaving the POI the course swings smoothly (no jump, no loop)
+      const r = await p.evaluate(() => { const C = WS.Core, S = C.S, W = S.m.waypoints; C.snap();
+        S.m.settings.headingMode = 'custom'; W.forEach(w => { delete w.hm; w.heading = 0; w.poi = null; });
+        S.m.pois = [{ id: 'tp', name: 'P', lat: 12.2475, lng: 109.1985, alt: 0 }];
+        C.lookAt(W[0], 'tp'); C.lookAt(W[1], 'tp'); W[2].hm = 'auto'; C.changed();
+        const warn0 = C.validate().some(x => /курс не «на точку интереса»/.test(x.msg));
+        const tl = SimCore.build(() => ({ g: 0 })); let mx = 0, prev = null;
+        for (let t = 0; t <= tl.T; t += 0.05) { const c = SimCore.at(tl, t); if (prev != null) mx = Math.max(mx, Math.abs(Geo.norm180(c.hd - prev))); prev = c.hd; }
+        const hm = W[0].hm; W[0].hm = 'custom'; const warn1 = C.validate().some(x => /курс не «на точку интереса»/.test(x.msg));
+        C.lookAt(W[0], null); const off = W[0].poi === null; C.undo(); return { hm, warn0, warn1, mx, off }; });
+      ok('«Смотреть на POI» ставит курс на POI, плавный уход от POI', r.hm === 'poi' && !r.warn0 && r.warn1 && r.off && r.mx < 6, r);
+    }
     const box = await p.evaluate(() => { const r = document.querySelector('#profCanvas').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; });
     const before = await p.evaluate(() => WS.Sim.cur && WS.Sim.cur.d);
     for (const f of [0.6, 0.75, 0.9]) { await p.mouse.move(box[0] + box[2] * f, box[1] + box[3] / 2); await p.waitForTimeout(150); }

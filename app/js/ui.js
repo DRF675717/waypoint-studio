@@ -526,7 +526,7 @@
         { label: 'Указать…', fn: async () => { const v = await ask('Высота точки, м', r1(w.alt)); if (v != null && !isNaN(v)) batch(x => x.alt = v); } } ] },
       { label: '📷 Наклон камеры' + sfx, sub: [[-90, 'Вниз (−90°, надир)'], [-60, '−60°'], [-45, '−45°'], [-30, '−30°'], [-20, '−20°'], [0, 'Горизонт (0°)']].map(([v, t]) => { const on = !many && Math.round(w.gimbal) === v; return { label: (on ? '✓ ' : '') + t, on, fn: () => batch(x => x.gimbal = v) }; }) },
     ];
-    items.push({ label: '◎ Смотреть на' + sfx, sub: S.m.pois.length ? [...S.m.pois.map(p => ({ label: (w.poi === p.id ? '✓ ' : '') + escH(p.name), fn: () => batch(x => x.poi = p.id) })), '-', { label: 'Ни на что (снять POI)', fn: () => batch(x => x.poi = null) }]
+    items.push({ label: '◎ Смотреть на' + sfx, sub: S.m.pois.length ? [...S.m.pois.map(p => ({ label: (w.poi === p.id ? '✓ ' : '') + escH(p.name), fn: () => batch(x => Core.lookAt(x, p.id)) })), '-', { label: 'Ни на что (снять POI)', fn: () => batch(x => Core.lookAt(x, null)) }]
       : [{ label: 'POI ещё нет — поставьте его правым кликом на карте', dis: true, fn: () => {} }] });
     // actions already set at the point are highlighted: their sequence on top, ✓ and a count on the add items
     const selW = many ? W.filter(x => S.sel.has(x.id)) : [w];
@@ -1257,7 +1257,7 @@
         if (k === 'photoMode' || k === 'photoVal') {
           const mode = $('[data-k=photoMode]', insp).value, val = parseFloat($('[data-k=photoVal]', insp).value) || 0;
           w.photoTime = mode === 'time' ? (val || 3) : 0; w.photoDist = mode === 'dist' ? (val || 20) : 0;
-        } else if (k === 'poi') w.poi = el.value || null;
+        } else if (k === 'poi') { Core.lookAt(w, el.value || null); inspKey = ''; }
         else if (k === 'hm') { if (el.value) w.hm = el.value; else delete w.hm; inspKey = ''; }
         else if (k === 'gkeep') { if (el.checked) w.gkeep = true; else delete w.gkeep; inspKey = ''; }
         else if (k === 'zoom') { const z = parseFloat(el.value); if (z >= 1) w.zoom = Math.min(4, z); else delete w.zoom; }
@@ -1303,7 +1303,7 @@
         <div class="row"><button class="btn sm" id="clrAct">Очистить действия</button><button class="btn sm" id="eqAlt">Выровнять высоту по первой</button><button class="btn sm" id="rstAll">↺ Сбросить параметры</button></div>`;
       insp.onchange = e => {
         const k = e.target.dataset.k; if (!k) return; const v = readVal(e.target);
-        if (k === 'poi') { if (v !== '_') batch(w => w.poi = v || null); return; }
+        if (k === 'poi') { const pv = e.target.value; if (pv !== '_') batch(w => Core.lookAt(w, pv || null)); return; }
         if (v == null || isNaN(v)) return;
         if (k === 'altD') batch(w => w.alt = r1(w.alt + v));
         else if (k === 'photoDist') batch(w => { w.photoDist = v; if (v > 0) w.photoTime = 0; });

@@ -1610,5 +1610,6 @@ window.WS_EN = {
 "Действия во всех точках": "Actions at all points",
 "Курс этой точки теперь «задать угол»": "This point now has «set angle» heading",
 "Куда смотрит нос дрона (0° — север, 90° — восток). Стрелки — точно по 1°, ползунок ниже — быстро. Если курс в точке не «задать угол», изменение переключит эту точку на «задать угол».": "Where the drone's nose points (0° — north, 90° — east). Arrows — exactly by 1°, the slider below — quickly. If the point heading is not «set angle», a change switches this point to «set angle».",
-"Курс: потяните для быстрой установки (Shift — шаг 15°)": "Heading: drag to set quickly (Shift — 15° steps)"
+"Курс: потяните для быстрой установки (Shift — шаг 15°)": "Heading: drag to set quickly (Shift — 15° steps)",
+"выбрана точка интереса, но курс не «на точку интереса» — камера на неё не смотрит, разворот от POI к маршруту идёт неверно. Выберите курс «на точку интереса» (или «Смотреть на → Ни на что»).": "a point of interest is chosen, but the heading is not «at the point of interest» — the camera does not look at it and the turn from the POI back to the route goes wrong. Choose the heading «at the point of interest» (or «Look at → Nothing»).",
 };

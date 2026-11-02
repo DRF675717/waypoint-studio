@@ -35,6 +35,12 @@ const Core = (() => {
   // a new point continues the previous one: same height, camera, speed, curve, heading, point of interest, zoom,
   // interval shooting (actions are not copied — a «start recording» or a panorama must not repeat by itself)
   const LIKE = ['alt', 'gimbal', 'speed', 'curve', 'heading', 'hm', 'poi', 'gkeep', 'zoom', 'photoTime', 'photoDist'];
+  // «Смотреть на» a POI: the point gets the POI AND the heading on it; «ни на что» drops both
+  function lookAt(w, poiId) {
+    const def = S.m.settings.headingMode; w.poi = poiId || null;
+    if (poiId) { if (def === 'poi') delete w.hm; else w.hm = 'poi'; }
+    else if ((w.hm || def) === 'poi') { if (def === 'poi') w.hm = 'auto'; else delete w.hm; }
+  }
   function newWaypointLike(p, prev, m) {
     const w = newWaypoint(p, m); if (!prev) return w;
     LIKE.forEach(k => { if (prev[k] !== undefined) w[k] = prev[k]; else delete w[k]; });
@@ -319,6 +325,10 @@ const Core = (() => {
     if (!S.m.home) add('info', 'Точка взлёта не задана — считается, что взлёт в точке 1. Задайте её режимом «Взлёт» для точных расчётов.');
     if (s.target === 'litchi' && d.apps !== 'litchi') add('warn', `${d.name} не поддерживается приложением Litchi for DJI Drones — используйте экспорт в DJI Fly KMZ.`);
     if (s.target === 'fly' && d.apps === 'litchi') add('warn', `${d.name} не поддерживает путевые точки DJI Fly — экспортируйте Litchi CSV.`);
+    { // a POI chosen for a point that does not turn the camera to it (course not «на точку интереса», tilt not «на POI»)
+      const bad = W.map((w, i) => (w.poi && poiById(w.poi) && (w.hm || s.headingMode) !== 'poi' && s.gimbalMode !== 'poi') ? i : -1).filter(i => i >= 0);
+      if (bad.length) add('warn', `${bad.length > 1 ? 'Т.' + bad.map(i => i + 1).join(', ') : 'Т.' + (bad[0] + 1)}: выбрана точка интереса, но курс не «на точку интереса» — камера на неё не смотрит, разворот от POI к маршруту идёт неверно. Выберите курс «на точку интереса» (или «Смотреть на → Ни на что»).`, bad[0]);
+    }
     const st = stats();
     if (st.battery > 85) { add('err', `Расчётный расход батареи ${Math.round(st.battery)}% — недостаточный резерв. Сократите маршрут, либо разбейте его по батареям (Экспорт → «разбить по батареям»).`); out[out.length - 1].battery = true; }
     else if (st.battery > 65) add('warn', `Расход батареи ~${Math.round(st.battery)}%. Стартуйте с полной батареей.`);
@@ -412,5 +422,5 @@ const Core = (() => {
   const selOne = () => S.sel.size === 1 ? [...S.sel][0] : null;
   function playStart(mid) { const id = selOne(); const i = id ? wpIndex(id) : -1; if (i < 0) return null; if (!mid || id !== playMark) return i; return null; }
   function markPlay() { playMark = selOne(); }
-  return { playStart, markPlay, newWaypointLike, fmtDate, fmtTime, hm, parseTime, fmtCfg, setFmt, recPlan, actGroups, S, id, on, emit, snap, undo, redo, changed, store, library, saveToLibrary, loadMission, newMission, newWaypoint, defaultSettings, drone, wpIndex, poiById, homePt, Elev, groundAt, wpASL, wpRel, wpAGL, poiASL, effHeading, effGimbal, pathGeometry, curveMeters, stats, profile, validate, targetName, actionTime, segTime };
+  return { lookAt, playStart, markPlay, newWaypointLike, fmtDate, fmtTime, hm, parseTime, fmtCfg, setFmt, recPlan, actGroups, S, id, on, emit, snap, undo, redo, changed, store, library, saveToLibrary, loadMission, newMission, newWaypoint, defaultSettings, drone, wpIndex, poiById, homePt, Elev, groundAt, wpASL, wpRel, wpAGL, poiASL, effHeading, effGimbal, pathGeometry, curveMeters, stats, profile, validate, targetName, actionTime, segTime };
 })();
