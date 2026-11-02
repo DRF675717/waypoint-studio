@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waypoint Studio — планировщик полётов DJI</title>
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header id="top">
+  <button class="btn icon mob" id="btnLeft" title="Панель миссии">☰</button>
+  <div class="brand"><img src="icon.svg" alt=""><span>Waypoint Studio</span></div>
+  <input id="mName" class="mname" title="Название маршрута">
+  <div class="grp">
+    <div class="menu"><button class="btn">Файл ▾</button>
+      <div class="drop">
+        <button data-cmd="new">Новый маршрут <kbd>⌘N</kbd></button>
+        <button data-cmd="save">Сохранить в библиотеку <kbd>⌘S</kbd></button>
+        <button data-cmd="saveFile">Сохранить в файл (.json)</button>
+        <button data-cmd="import">Открыть / импорт… <kbd>⌘O</kbd></button>
+        <hr>
+        <button data-cmd="clearWp">🧹 Удалить все точки маршрута</button>
+        <button data-cmd="clearAll">🧹 Очистить всё (точки, POI, взлёт, зоны)</button>
+        <hr><small>Форматы импорта: Litchi CSV, DJI KMZ/WPML, KML/KMZ, GeoJSON, GPX, JSON</small>
+      </div>
+    </div>
+    <div class="menu"><button class="btn primary">Экспорт ▾</button>
+      <div class="drop">
+        <button data-cmd="sendRC" class="desk" hidden><b>📲 Пульт DJI RC 2: открыть / записать задания…</b></button>
+        <button data-exp="fly">DJI Fly — путевые точки (.kmz)</button>
+        <button data-exp="fly-split">DJI Fly — разбить по батареям (.kmz × N)</button>
+        <button data-exp="pilot">DJI Pilot 2 (.kmz)</button>
+        <button data-exp="csv">Litchi — CSV (Mission Hub)</button>
+        <hr>
+        <button data-exp="kml">Google Earth — 3D + виртуальный полёт (.kml)</button>
+        <button data-exp="gpx">GPX</button>
+        <button data-exp="geojson">GeoJSON</button>
+        <button data-exp="json">Резервная копия (.json)</button>
+        <button data-cmd="shareLast" class="andr" hidden>📤 Отправить последний файл…</button>
+      </div>
+    </div>
+  </div>
+  <div class="grp">
+    <button class="btn icon" data-cmd="undo" title="Отменить (⌘Z)">↶</button>
+    <button class="btn icon" data-cmd="redo" title="Повторить (⇧⌘Z)">↷</button>
+  </div>
+  <div class="grp modes" id="modes">
+    <button data-mode="wp" title="Добавлять путевые точки (W)">✚ Точки</button>
+    <button data-mode="poi" title="Добавлять точки интереса (P)">◎ POI</button>
+    <button data-mode="home" title="Задать точку взлёта (H)">⌂ Взлёт</button>
+    <button data-mode="area" title="Рисовать зону картирования (A)">▱ Зона</button>
+    <button data-mode="line" title="Рисовать линию для коридора/фасада (L)">╱ Линия</button>
+    <button data-mode="pan" title="Просмотр: клики по карте не ставят точки">✋ Просмотр</button>
+  </div>
+  <i class="hlp" data-tip="Что делает клик по карте:
+✚ Точки — ставит точку маршрута (основной режим)
+◎ POI — точку интереса, на которую смотрит камера
+⌂ Взлёт — место взлёта (H)
+▱ Зона / ╱ Линия — контур для картирования и коридора
+✋ Просмотр — клики ничего не ставят
+
+Правый клик по карте или точке в любом режиме открывает меню.">?</i>
+  <div class="search"><input id="search" placeholder="Поиск места или координаты…" autocomplete="off"><div id="searchRes"></div></div>
+  <div class="grp right">
+    <span id="gStatus" class="gst" data-cmd="settings"></span>
+    <select id="layerSel" title="Подложка карты"></select>
+    <button class="btn" id="updBtn" hidden title="Доступна новая версия Waypoint Studio — нажмите, чтобы обновить">⬆ Обновить</button>
+    <button class="btn desk" id="rcBtn" data-cmd="sendRC" hidden title="Пульт DJI RC 2: открыть задания с пульта, записать маршрут на пульт">📲 Пульт</button>
+    
+    <button class="btn icon" data-cmd="settings" title="Настройки и ключ Google Maps">⚙</button>
+    <button class="btn icon" data-cmd="help" title="Справка (?)">?</button>
+    <button class="btn icon mob" id="btnRight" title="Свойства точки">ⓘ</button>
+  </div>
+</header>
+
+<aside id="left">
+  <nav class="tabs" id="ltabs">
+    <button data-tab="mission" class="on">Миссия</button>
+    <button data-tab="points">Точки</button>
+    <button data-tab="tools">Генераторы</button>
+    <button data-tab="library">Архив</button>
+    <button data-tab="check">Проверка <b id="warnBadge"></b></button>
+  </nav>
+  <section class="tab on" id="tab-mission"></section>
+  <section class="tab" id="tab-points"></section>
+  <section class="tab" id="tab-tools"></section>
+  <section class="tab" id="tab-library"></section>
+  <section class="tab" id="tab-check"></section>
+</aside>
+
+<main id="mapWrap"><div id="map"></div>
+  <i class="hlp maphlp" data-tip="Карта маршрута.
+• Клик — новая точка (режим «Точки»)
+• Перетаскивание точки — переместить
+• «+» между точками — вставить точку
+• Правый клик — меню: добавить POI/взлёт, переместить, сменить тип, высота, камера, удалить, очистить
+• Shift + рамка — выделить группу
+• Жёлтая рамка у выбранной точки — что попадёт в кадр камеры">?</i>
+  <div id="modeHint"></div>
+  <div id="osd" hidden></div>
+  <button class="coltab l" id="colL" type="button">‹</button>
+  <button class="coltab r" id="colR" type="button">›</button>
+</main>
+
+<aside id="right"><div id="insp"></div></aside>
+
+<footer id="bottom">
+  <div id="stats"></div>
+  <div id="sim">
+    <button class="btn icon" id="simPlay" title="Симуляция (Пробел)">▶</button>
+    <input type="range" id="simSlider" min="0" max="1000" value="0">
+    <select id="simSpeed"><option value="1">1×</option><option value="3">3×</option><option value="5" selected>5×</option><option value="20">20×</option><option value="60">60×</option></select>
+    <label class="chk" title="Во время симуляции карта движется вместе с дроном и держит его в центре. Выключено — карта неподвижна и показывает весь маршрут."><input type="checkbox" id="simFollow"> 🎯 карта за дроном</label>
+    <button class="btn icon" id="profToggle" title="Профиль высот">⛰</button><i class="hlp" data-tip="Итоги маршрута: длина, время, расход батареи, минимальный зазор над рельефом. Красный — превышение лимитов.
+Ниже — профиль высот: синяя линия — полёт, коричневое — рельеф, красный пунктир — минимальный безопасный зазор. Клик по профилю выбирает точку.">?</i>
+  </div>
+  <div id="profile"><canvas id="profCanvas"></canvas><div id="profTip"></div></div>
+</footer>
+
+<div id="ctx" hidden></div>
+<div id="toast"></div>
+<div id="modal" hidden><div class="box"><button class="x" data-close>✕</button><div id="modalBody"></div></div></div>
+<input type="file" id="fileIn" hidden accept=".csv,.kml,.kmz,.wpml,.gpx,.json,.geojson">
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/Leaflet.GoogleMutant.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<script src="config.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/drones.js"></script>
+<script src="js/core.js"></script>
+<script src="js/simcore.js"></script>
+<script src="js/geoworld.js"></script>
+<script src="js/zones.js"></script>
+<script src="js/los.js"></script>
+<script src="js/io.js"></script>
+<script src="js/gen.js"></script>
+<script src="js/maps.js"></script>
+<script src="js/dronemodel.js"></script>
+<script src="js/view3d.js"></script>
+<script src="js/rcbridge.js"></script>
+<script src="js/update.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
