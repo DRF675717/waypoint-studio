@@ -96,11 +96,14 @@ const groups = {
   async lang(b) {
     const p = await page(b, route);
     if (!(await p.evaluate(() => typeof I18N !== 'undefined'))) { ok('английский интерфейс есть', false); return p.close(); }
-    await p.evaluate(() => I18N.set('en')); await p.waitForTimeout(400);
+    await p.evaluate(() => I18N.set('en')); await p.waitForTimeout(600); await p.waitForFunction(() => window.WS && WS.Core); await p.evaluate(() => WS.UI && WS.UI.set('full')); await p.waitForTimeout(500);
     const cyr = await p.evaluate(() => { const out = []; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) { const el = n.parentElement; if (!el || el.closest('script,style,.leaflet-control-attribution,#libList,.mname,input,textarea') || !el.offsetParent) continue; if (/[а-яё]/i.test(n.textContent)) out.push(n.textContent.trim().slice(0, 60)); } return out; });
     ok('английский: на экране нет русского текста', cyr.length <= 3, cyr.slice(0, 15));
     ok('английский: подписи вкладок', await p.evaluate(() => /Mission/i.test(document.querySelector('#ltabs').innerText)));
-    await p.evaluate(() => I18N.set('ru')); await p.waitForTimeout(300);
+    for (const t of ['points', 'tools', 'check', 'mission']) { await p.evaluate(t => { const b = document.querySelector(`#ltabs [data-tab=${t}]`); b && b.click(); }, t); await p.waitForTimeout(150); }
+    const cyr2 = await p.evaluate(() => { const out = []; document.querySelectorAll('#left, #right, #top, #bottom').forEach(r => { const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) { const el = n.parentElement; if (!el || el.closest('script,style,.mname,input,textarea,#libList') || !el.offsetParent) continue; if (/[а-яё]/i.test(n.textContent)) out.push(n.textContent.trim().slice(0, 50)); } }); return out; });
+    ok('английский: во всех вкладках нет русского', cyr2.length <= 3, cyr2.slice(0, 20));
+    await p.evaluate(() => I18N.set('ru')); await p.waitForTimeout(600); await p.waitForFunction(() => window.WS && WS.Core); await p.evaluate(() => WS.UI && WS.UI.set('full')); await p.waitForTimeout(300);
     ok('обратно на русский', await p.evaluate(() => /Миссия/.test(document.querySelector('#ltabs').innerText)));
     ok('без ошибок в консоли', p.errs.length === 0, p.errs);
     await p.close();

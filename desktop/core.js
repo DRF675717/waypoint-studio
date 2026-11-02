@@ -370,6 +370,11 @@ function startServer(port) {
       if ((req.url || '').startsWith('/rc/')) return handleRC(req, res, new URL(req.url, 'http://localhost'));
       if ((req.url || '').startsWith('/cb/')) return handleCB(req, res, new URL(req.url, 'http://localhost'));
       if ((req.url || '').startsWith('/geo/')) return handleGeo(req, res, new URL(req.url, 'http://localhost'));
+      if ((req.url || '').startsWith('/ui/lang') && req.method === 'POST' && req.headers['x-ws-token'] === RC_TOKEN) {
+        const l = new URL(req.url, 'http://localhost').searchParams.get('l') === 'en' ? 'en' : 'ru';
+        try { fs.writeFileSync(path.join(app.getPath('userData'), 'ui.json'), JSON.stringify({ lang: l })); } catch (e) { /* ignore */ }
+        buildMenu(); res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true}');
+      }
       if ((req.url || '').startsWith('/tp/')) return handleTP(req, res, new URL(req.url, 'http://localhost'));
       if ((req.url || '').startsWith('/upd/')) return handleUPD(req, res, new URL(req.url, 'http://localhost'));
       let p = decodeURIComponent((req.url || '/').split('?')[0]);
@@ -518,6 +523,13 @@ async function handleUPD(req, res, url) {
   } catch (e) { return send(200, { ok: false, error: String(e.message || e) }); }
 }
 
+// menu language follows the interface (stored in userData/ui.json, changed from the page)
+const MENU_EN = { 'О программе': 'About', 'Проверить обновления…': 'Check for updates…', 'Скрыть': 'Hide', 'Скрыть остальные': 'Hide others', 'Показать все': 'Show all', 'Выйти': 'Quit',
+  'Файл': 'File', 'Открыть маршрут…': 'Open route…', 'Открыть папку экспорта': 'Open export folder', 'Закрыть окно': 'Close window', 'Выход': 'Exit', 'Правка': 'Edit', 'Отменить': 'Undo', 'Повторить': 'Redo',
+  'Вырезать': 'Cut', 'Копировать': 'Copy', 'Вставить': 'Paste', 'Выделить всё': 'Select all', 'Вид': 'View', 'Перезагрузить': 'Reload', 'Инструменты разработчика': 'Developer tools', 'Масштаб 100%': 'Actual size',
+  'Увеличить': 'Zoom in', 'Уменьшить': 'Zoom out', 'Полный экран': 'Full screen', 'Окно': 'Window', 'Справка': 'Help', 'Зоны полётов DJI (Fly Safe)': 'DJI flight zones (Fly Safe)', 'Маршруты': 'Routes' };
+function uiLang() { try { return JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'ui.json'), 'utf8')).lang || 'ru'; } catch (e) { return 'ru'; } }
+function enMenu(t) { return t.map(i => { const o = Object.assign({}, i); if (o.label && MENU_EN[o.label]) o.label = MENU_EN[o.label]; if (Array.isArray(o.submenu)) o.submenu = enMenu(o.submenu); return o; }); }
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const tpl = [
@@ -535,7 +547,7 @@ function buildMenu() {
     { role: 'windowMenu', label: 'Окно' },
     { role: 'help', label: 'Справка', submenu: [{ label: 'Зоны полётов DJI (Fly Safe)', click: () => shell.openExternal('https://fly-safe.dji.com/nfz/nfz-query') }] },
   ];
-  Menu.setApplicationMenu(Menu.buildFromTemplate(tpl));
+  Menu.setApplicationMenu(Menu.buildFromTemplate(uiLang() === 'en' ? enMenu(tpl) : tpl));
 }
 
 app.setName('Waypoint Studio');

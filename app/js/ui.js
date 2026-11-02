@@ -1546,6 +1546,8 @@
   function closeModal() { $('#modal').hidden = true; $('#modalBody').innerHTML = ''; }
   $('#modal').onclick = e => { if (e.target.id === 'modal' || e.target.closest('[data-close]')) closeModal(); };
 
+  // interface language
+  { const b = $('#langBtn'); if (b) { b.textContent = I18N.lang === 'en' ? 'EN' : 'RU'; b.onclick = () => I18N.set(I18N.lang === 'en' ? 'ru' : 'en'); } }
   function settingsDlg() {
     const k = Maps.key();
     modal(`<h2>Настройки</h2>
@@ -1571,6 +1573,8 @@
       <div class="f wide"><label>Ключ Airbus OneAtlas (API key) — <a href="https://account.foundation.oneatlas.airbus.com/" target="_blank" style="color:var(--acc)">получить</a></label><input id="airbusKey" type="password" value="${escH((Core.store.get('ws.img', {}) || {}).airbus || '')}" placeholder="88 символов" style="background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px"></div>
       <div class="f wide"><label>Ключ Vantor / Maxar (MGP, maxar-api-key) — <a href="https://developers.maxar.com/docs/streaming-basemap/quickstart-basemaps" target="_blank" style="color:var(--acc)">как получить</a></label><input id="maxarKey" type="password" value="${escH((Core.store.get('ws.img', {}) || {}).maxar || '')}" placeholder="ключ Maxar API" style="background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px"></div>
       <div class="row"><button class="btn primary" id="imgSave">Сохранить и проверить</button><span class="note" id="imgStatus"></span></div>
+      <h3>Язык интерфейса / Interface language</h3>
+      <div class="row nolang" style="gap:8px"><button class="btn ${I18N.lang === 'ru' ? 'primary' : ''}" data-lang="ru">Русский</button><button class="btn ${I18N.lang === 'en' ? 'primary' : ''}" data-lang="en">English</button></div>
       <h3>Формат даты и времени</h3>
       <div class="row" style="gap:12px;flex-wrap:wrap"><label>Дата <select id="setFmtD">${FMT_D.map(([v, t]) => `<option value="${v}" ${Core.fmtCfg().d === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <label>Время <select id="setFmtT"><option value="24" ${Core.fmtCfg().t === '24' ? 'selected' : ''}>24 часа (17:30)</option><option value="12" ${Core.fmtCfg().t === '12' ? 'selected' : ''}>12 часов (5:30 PM)</option></select></label></div>
@@ -1586,6 +1590,7 @@
       if (img.maxar) { try { const t = await fetch('https://api.maxar.com/basemaps/v1/ogc/wms?service=WMS&request=GetMap&version=1.3.0&layers=Maxar:Imagery&styles=&crs=EPSG:3857&bbox=12150000,1370000,12151000,1371000&width=64&height=64&format=image/jpeg&maxar_api_key=' + encodeURIComponent(img.maxar)); msg.push(t.ok && /image/.test(t.headers.get('content-type') || '') ? '✓ Maxar: ключ принят' : '✗ Maxar: ответ ' + t.status); } catch (e) { msg.push('✗ Maxar: нет связи или ключ не принят'); } }
       st.innerHTML = msg.join(' · ') || 'Ключи удалены'; renderLayList(); fillLayerSel();
     };
+    document.querySelectorAll('[data-lang]').forEach(b => { b.onclick = () => I18N.set(b.dataset.lang); });
     $('#setFmtD').onchange = e => Core.setFmt({ d: e.target.value }); $('#setFmtT').onchange = e => Core.setFmt({ t: e.target.value });
     $('#ionsave').onclick = () => { Core.store.set('ws.ionkey', $('#ionkey').value.trim()); Core.store.set('ws.ionStatus', ''); toast('Ключ Cesium ion сохранён — перезапуск', 'ok'); setTimeout(() => location.reload(), 600); };
     $('#gsave').onclick = () => { Core.store.set('ws.gkey', $('#gkey').value.trim()); location.reload(); };
