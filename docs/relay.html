@@ -6,7 +6,7 @@
   const q = new URLSearchParams(location.search), names = (q.get('f') || '').split(',').filter(Boolean), to = q.get('to') || 'https://www.facebook.com';
   const files = [];
   for (const n of names) { if (!/^media\/[\w.-]+$/.test(n)) continue; const r = await fetch(n); files.push({ name: n.split('/').pop(), type: r.headers.get('content-type'), buf: await r.arrayBuffer() }); }
-  window.opener && window.opener.postMessage({ wsMedia: files }, to, files.map(f => f.buf));
+  const tgt = window.opener || (window.parent !== window ? window.parent : null); tgt && tgt.postMessage({ wsMedia: files }, to, files.map(f => f.buf));
   document.body.textContent = 'Done (' + files.length + ' files). This window closes itself.';
   setTimeout(() => window.close(), 500);
 })().catch(e => { document.body.textContent = 'Error: ' + e; });
