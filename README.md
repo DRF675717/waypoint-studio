@@ -14,6 +14,8 @@ terrain, and simulates the whole flight before you take off.
 
 ![3D view of a route](docs/screenshot-3d.jpg)
 
+▶ **[Watch a 30-second 3D flight preview (MP4)](docs/media/waypoint-studio-3d.mp4)** · more screenshots: [chase view](docs/media/3d-chase.jpg), [drone camera](docs/media/drone-camera.jpg)
+
 ## Features
 
 * **Map & 3D** — satellite / hybrid / topo maps (Esri, Google, Airbus/CNES, Vantor/Maxar with your key), photorealistic

@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><title>Waypoint Studio media</title>
+<body style="font:14px sans-serif;padding:20px">Preparing Waypoint Studio screenshots and video…
+<script>
+// Hands the promo screenshots / video of this site to the page that opened this window (used to attach them to a post).
+(async () => {
+  const q = new URLSearchParams(location.search), names = (q.get('f') || '').split(',').filter(Boolean), to = q.get('to') || 'https://www.facebook.com';
+  const files = [];
+  for (const n of names) { if (!/^media\/[\w.-]+$/.test(n)) continue; const r = await fetch(n); files.push({ name: n.split('/').pop(), type: r.headers.get('content-type'), buf: await r.arrayBuffer() }); }
+  window.opener && window.opener.postMessage({ wsMedia: files }, to, files.map(f => f.buf));
+  document.body.textContent = 'Done (' + files.length + ' files). This window closes itself.';
+  setTimeout(() => window.close(), 500);
+})().catch(e => { document.body.textContent = 'Error: ' + e; });
+</script>
