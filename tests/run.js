@@ -117,6 +117,29 @@ const groups = {
         C.lookAt(W[0], null); const off = W[0].poi === null; C.undo(); return { hm, warn0, warn1, mx, off }; });
       ok('«Смотреть на POI» ставит курс на POI, плавный уход от POI', r.hm === 'poi' && !r.warn0 && r.warn1 && r.off && r.mx < 6, r);
     }
+    { // AXIOM: from a POI back to the route the drone turns through the sector, bounded by the route line, where the POI is
+      const r = await p.evaluate(() => { const C = WS.Core, S = C.S; C.snap();
+        const off = (o, brg, d) => { const R = d / 6371000, la = o.lat * Math.PI / 180, lo = o.lng * Math.PI / 180, t = brg * Math.PI / 180;
+          const la2 = Math.asin(Math.sin(la) * Math.cos(R) + Math.cos(la) * Math.sin(R) * Math.cos(t));
+          return { lat: la2 * 180 / Math.PI, lng: (lo + Math.atan2(Math.sin(t) * Math.sin(R) * Math.cos(la), Math.cos(R) - Math.sin(la) * Math.sin(la2))) * 180 / Math.PI }; };
+        const res = [];
+        // [outgoing course, POI bearing, expected signed swing] — arriving northwards (back ray = 180°)
+        for (const [outB, poiB, want, hover] of [[90, 250, 200], [270, 110, -200], [150, 300, 210], [200, 90, -250], [0, 270, 90], [90, 250, 200, true]]) {
+          const B = { lat: 12.247, lng: 109.195 }, A = off(B, 180, 300), N = off(B, outB, 300), P = off(B, poiB, 120);
+          S.m.pois = [{ id: 'ax', name: 'P', lat: P.lat, lng: P.lng, alt: 0 }]; S.m.settings.headingMode = 'auto'; S.m.settings.poiPre = 'on'; S.m.settings.poiBlend = 3;
+          S.m.waypoints = [A, B, N].map(q => C.newWaypoint({ lat: q.lat, lng: q.lng, alt: 50 }, S.m)); const W = S.m.waypoints;
+          W.forEach(w => { w.actions = []; w.curve = 0; w.hm = 'auto'; }); W[0].hm = 'poi'; W[0].poi = 'ax'; if (hover) W[1].actions = [{ type: 0, param: 2000 }]; C.changed();
+          const tl = SimCore.build(() => ({ g: 0 })); let tB = null; for (let t = 0; t <= tl.T && tB == null; t += 0.05) if (SimCore.at(tl, t).wi === 1) tB = t;
+          let cum = 0, prev = null, back = false;
+          for (let t = tB - 1; t <= tB + 10; t += 0.05) { const h = SimCore.at(tl, t).hd; if (prev != null) { const a = Geo.norm180(prev - 180), b = Geo.norm180(h - 180); if (Math.abs(a) < 30 && Math.abs(b) < 30 && Math.sign(a) !== Math.sign(b)) back = true; cum += Geo.norm180(h - prev); } prev = h; }
+          // export: every heading step between consecutive points ≤ 150° and in the same direction as the swing
+          const L = IO.exportList(), hs = L.slice(1).map((w, i) => w.hm === 'custom' ? w.heading : Geo.bearing(w, L[i + 2] || w)).slice(0, -1);
+          let expOk = true; for (let i = 1; i < hs.length; i++) { const d = Geo.norm180(hs[i] - hs[i - 1]); if (Math.abs(d) > 150 || (Math.abs(d) > 1 && Math.sign(d) !== Math.sign(want))) expOk = false; }
+          res.push({ outB, poiB, cum: Math.round(cum), back, expOk, ok: !back && expOk && Math.abs(cum - want) < 15 });
+        }
+        C.undo(); return res; });
+      ok('аксиома: от POI к маршруту — через сектор, где POI (симуляция и экспорт DJI)', r.every(x => x.ok), r.filter(x => !x.ok));
+    }
     const box = await p.evaluate(() => { const r = document.querySelector('#profCanvas').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; });
     const before = await p.evaluate(() => WS.Sim.cur && WS.Sim.cur.d);
     for (const f of [0.6, 0.75, 0.9]) { await p.mouse.move(box[0] + box[2] * f, box[1] + box[3] / 2); await p.waitForTimeout(150); }

@@ -797,7 +797,10 @@ const IO = (() => {
           // DJI always turns the short way: a turn of more than 150° gets a middle point so it goes the same way as
           // in the simulation (through the side where the POI is, then through the drone's front)
           const hT = h.hm === 'custom' ? h.heading : modeOf(h) === 'poi' && aim(h) ? Geo.bearing(h, aim(h)) : Geo.bearing(h, next), dd = turnBy(w.heading, hT, Geo.bearing(prev, w0));
-          if (Math.abs(dd) > 150) { const m = mk(w0, next, d / 2, w0); m.hm = 'custom'; m.heading = r1(w.heading + dd / 2); out.push(m); added.push(m); }
+          // (AXIOM: through the sector bounded by the route line in which the POI lies); every step ≤ 120° so DJI can't
+          // pick the other way round
+          const nS = Math.ceil(Math.abs(dd) / 120);
+          for (let q = 1; q < nS; q++) { const m = mk(w0, next, d * q / nS, w0); m.hm = 'custom'; m.heading = r1(w.heading + dd * q / nS); out.push(m); added.push(m); }
           out.push(h); added.push(h); return;
         } }
       // arriving with a new course after a stretch whose course does not change by itself («по курсу» / «как в начале»)
@@ -807,7 +810,8 @@ const IO = (() => {
           const h = mk(w0, prev, d, prev), old = mP === 'auto' ? Geo.bearing(h, w0) : (Core.effHeading(i - 1) ?? 0);
           if (Math.abs(Geo.norm180(hc - old)) > 2) { h.hm = 'custom'; h.heading = r1(old); out.push(h); added.push(h);
             const dd = turnBy(old, hc, Geo.bearing(prev, w0));
-            if (Math.abs(dd) > 150) { const m = mk(w0, prev, d / 2, prev); m.hm = 'custom'; m.heading = r1(old + dd / 2); out.push(m); added.push(m); } }
+            const nS = Math.ceil(Math.abs(dd) / 120);
+            for (let q = nS - 1; q >= 1; q--) { const m = mk(w0, prev, d * q / nS, prev); m.hm = 'custom'; m.heading = r1(old + dd * (nS - q) / nS); out.push(m); added.push(m); } }
         }
       }
       out.push(w);

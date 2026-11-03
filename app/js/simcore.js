@@ -53,6 +53,8 @@ const SimCore = (() => {
   //  • on ARRIVAL — the turn happens BEFORE the point, so at the point the camera already has the course set for it;
   //  • on DEPARTURE after hovering — the turn happens just AFTER leaving the point.
   // The turn always goes through the drone's front (never across its back), measured from the direction of travel.
+  // AXIOM (turning from a POI back to the route): the drone turns through the sector of the circle, bounded by the
+  // route line through the point, in which the POI lies — never across the line along which it arrived.
   function jumps(tl) {
     if (tl._jumps) return tl._jumps;
     const P = tl.pts, W = S.m.waypoints, tau0 = Math.max(1, S.m.settings.poiBlend ?? 3), e = 1e-3, out = [];
@@ -74,7 +76,13 @@ const SimCore = (() => {
       if (Math.abs(G) > 0.5 && taug > 0) out.push({ t0: tA, t1: tA + taug, G, gimbal: true });
       const tAn = arr(k + 1);
       if (tD != null && tD - tA > 2 * e && tAn != null) {
-        const g0 = rawAt(tl, tD - e).hd, g1 = rawAt(tl, tD + e).hd, tro = outDir(P, k); // direction the path leaves the point (two samples «2 s apart» could both land on the next point → 0°)
+        const g0 = rawAt(tl, tD - e).hd, g1 = rawAt(tl, tD + e).hd;
+        // AXIOM: turning away from a POI towards the route goes through the sector of the circle — bounded by the route
+        // line through the point — in which the POI lies, i.e. never across the line the drone ARRIVED along; so a
+        // departure that starts on a POI is measured from the arrival direction. Any other departure turn is measured
+        // from the direction the path leaves the point (two samples «2 s apart» could both land on the next point → 0°).
+        const aP = aimOf(k - 1), fromPoi = aP && Math.abs(Geo.norm180(g0 - Geo.bearing(W[k], aP))) < 3;
+        const tro = fromPoi ? trackInto(P, k) : outDir(P, k);
         const Jd = turn(g0, g1, tro), taud = Math.min(tau0, 0.45 * (tAn - tD));
         if (Math.abs(Jd) > 0.5 && taud > 0) out.push({ t0: tD, t1: tD + taud, J: Jd, before: false });
         const Gd = rawAt(tl, tD + e).gb - rawAt(tl, tD - e).gb, taugd = Math.min(1.5, 0.45 * (tAn - tD));
