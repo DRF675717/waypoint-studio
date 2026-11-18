@@ -1988,6 +1988,7 @@
   else refresh();
   setMode('wp');
   window.WS = { Core, IO, Gen, Maps, map, Sim, refresh, UI };
+  window.WSCmd = c => cmd(c); // the desktop app's native menu (File) runs the same commands as the in-page «File» menu
   // Android: files opened/shared into the app
   window.wsImportBase64 = async (name, b64) => {
     try {

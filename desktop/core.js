@@ -540,19 +540,29 @@ async function handleUPD(req, res, url) {
 const MENU_EN = { 'О программе': 'About', 'Проверить обновления…': 'Check for updates…', 'Скрыть': 'Hide', 'Скрыть остальные': 'Hide others', 'Показать все': 'Show all', 'Выйти': 'Quit',
   'Файл': 'File', 'Открыть маршрут…': 'Open route…', 'Открыть папку экспорта': 'Open export folder', 'Закрыть окно': 'Close window', 'Выход': 'Exit', 'Правка': 'Edit', 'Отменить': 'Undo', 'Повторить': 'Redo',
   'Вырезать': 'Cut', 'Копировать': 'Copy', 'Вставить': 'Paste', 'Выделить всё': 'Select all', 'Вид': 'View', 'Перезагрузить': 'Reload', 'Инструменты разработчика': 'Developer tools', 'Масштаб 100%': 'Actual size',
-  'Увеличить': 'Zoom in', 'Уменьшить': 'Zoom out', 'Полный экран': 'Full screen', 'Окно': 'Window', 'Справка': 'Help', 'Зоны полётов DJI (Fly Safe)': 'DJI flight zones (Fly Safe)', 'Маршруты': 'Routes' };
+  'Увеличить': 'Zoom in', 'Уменьшить': 'Zoom out', 'Полный экран': 'Full screen', 'Окно': 'Window', 'Справка': 'Help', 'Зоны полётов DJI (Fly Safe)': 'DJI flight zones (Fly Safe)', 'Маршруты': 'Routes', 'Новый маршрут': 'New route', 'Сохранить в библиотеку': 'Save to library', 'Сохранить в файл (.json)…': 'Save to file (.json)…',
+  'Удалить все точки маршрута': 'Delete all waypoints', 'Очистить маршрут (точки, POI, взлёт, зоны)': 'Clear route (points, POIs, take-off, zones)' };
 function uiLang() { try { return JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'ui.json'), 'utf8')).lang || 'ru'; } catch (e) { return 'ru'; } }
 function enMenu(t) { return t.map(i => { const o = Object.assign({}, i); if (o.label && MENU_EN[o.label]) o.label = MENU_EN[o.label]; if (Array.isArray(o.submenu)) o.submenu = enMenu(o.submenu); return o; }); }
+// runs a command of the page's own «File» menu (the page asks for confirmation itself)
+function pageCmd(c) { if (win && !win.isDestroyed()) win.webContents.executeJavaScript(`window.WSCmd && WSCmd(${JSON.stringify(c)})`).catch(() => {}); }
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const tpl = [
     ...(isMac ? [{ label: 'Waypoint Studio', submenu: [{ role: 'about', label: 'О программе' }, { label: 'Проверить обновления…', click: async () => { await checkUpdate(); if (win) win.webContents.executeJavaScript('typeof WSUpdate !== "undefined" && WSUpdate.check(true)').catch(() => {}); } }, { type: 'separator' }, { role: 'hide', label: 'Скрыть' }, { role: 'hideOthers', label: 'Скрыть остальные' }, { role: 'unhide', label: 'Показать все' }, { type: 'separator' }, { role: 'quit', label: 'Выйти' }] }] : []),
     { label: 'Файл', submenu: [
+      { label: 'Новый маршрут', accelerator: 'CmdOrCtrl+N', click: () => pageCmd('new') },
       { label: 'Открыть маршрут…', accelerator: 'CmdOrCtrl+O', click: async () => {
         const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Маршруты', extensions: ['kmz', 'kml', 'csv', 'gpx', 'json', 'geojson', 'wpml'] }] });
         if (!r.canceled) r.filePaths.forEach(importFile);
       } },
+      { type: 'separator' },
+      { label: 'Сохранить в библиотеку', accelerator: 'CmdOrCtrl+S', click: () => pageCmd('save') },
+      { label: 'Сохранить в файл (.json)…', accelerator: 'Shift+CmdOrCtrl+S', click: () => pageCmd('saveFile') },
       { label: 'Открыть папку экспорта', click: () => shell.openPath(exportDir()) },
+      { type: 'separator' },
+      { label: 'Удалить все точки маршрута', click: () => pageCmd('clearWp') },
+      { label: 'Очистить маршрут (точки, POI, взлёт, зоны)', click: () => pageCmd('clearAll') },
       { type: 'separator' }, isMac ? { role: 'close', label: 'Закрыть окно' } : { role: 'quit', label: 'Выход' },
     ] },
     { label: 'Правка', submenu: [{ role: 'undo', label: 'Отменить' }, { role: 'redo', label: 'Повторить' }, { type: 'separator' }, { role: 'cut', label: 'Вырезать' }, { role: 'copy', label: 'Копировать' }, { role: 'paste', label: 'Вставить' }, { role: 'selectAll', label: 'Выделить всё' }] },
